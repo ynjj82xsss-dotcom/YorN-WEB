@@ -1,0 +1,54 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --color-anthracite: #050505;
+  --color-anthracite-light: #080808;
+  --color-anthracite-border: #1A1A1A;
+}
+
+body {
+    background-color: var(--color-anthracite);
+    color: #e5e5e5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+[data-theme="light"] {
+  filter: invert(1) hue-rotate(180deg);
+}
+
+[data-theme="light"] img, 
+[data-theme="light"] video, 
+[data-theme="light"] .keep-original-color {
+  filter: invert(1) hue-rotate(180deg);
+}
+
+[data-theme="cosmic"] {
+  filter: hue-rotate(280deg) saturate(1.5) contrast(1.1);
+}
+
+/* Custom minimal scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #2a2a30;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3f3f46;
+}
+
+/* Base utility for hiding scrollbar visually but allowing scroll */
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;
+}
+.scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
