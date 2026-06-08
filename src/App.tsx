@@ -2,7 +2,7 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { doc, deleteDoc } from 'firebase/firestore';
 import { auth, googleProvider, signInWithPopup, signOut, db } from './lib/firebase';
@@ -34,6 +34,17 @@ export default function App() {
   const [dbLoading, setDbLoading] = useState(false);
   const [showSplash, setShowSplash] = useState(true);
   const [isMobileDevice, setIsMobileDevice] = useState(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  const handleStopGeneration = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    setIsTyping(false);
+    setTypingLabel(undefined);
+    triggerHaptic(30);
+  };
 
   useEffect(() => {
     const detectDevice = () => {
@@ -285,6 +296,8 @@ export default function App() {
     }
 
     setIsTyping(true);
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
     if (mode === 'plan') {
       try {
@@ -312,6 +325,7 @@ export default function App() {
           headers: {
             'Content-Type': 'application/json'
           },
+          signal: controller.signal,
           body: JSON.stringify({
             messages: messagesForPlanning,
             mode: 'tech',
@@ -362,6 +376,7 @@ export default function App() {
           headers: {
             'Content-Type': 'application/json'
           },
+          signal: controller.signal,
           body: JSON.stringify({
             messages: messagesForExecution,
             mode: 'tech',
@@ -394,7 +409,11 @@ export default function App() {
           console.error("Error saving final text response to Firestore:", err);
         }
 
-      } catch (e) {
+      } catch (e: any) {
+        if (e.name === 'AbortError') {
+          console.log("Planning mode was aborted");
+          return;
+        }
         const newBotMsg: Message = {
           id: (Date.now() + 1).toString(),
           role: 'assistant',
@@ -439,6 +458,7 @@ export default function App() {
         headers: {
           'Content-Type': 'application/json'
         },
+        signal: controller.signal,
         body: JSON.stringify({
           messages: messagesToSend,
           mode: mode,
@@ -471,7 +491,11 @@ export default function App() {
         console.error("Error saving bot reply to Firestore:", err);
       }
       
-    } catch (e) {
+    } catch (e: any) {
+       if (e.name === 'AbortError') {
+         console.log("Chat generation was aborted");
+         return;
+       }
        const newBotMsg: Message = {
            id: (Date.now() + 1).toString(),
            role: 'assistant',
@@ -533,6 +557,8 @@ export default function App() {
     }));
 
     setIsTyping(true);
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
     if (mode === 'plan') {
       try {
@@ -554,6 +580,7 @@ export default function App() {
           headers: {
             'Content-Type': 'application/json'
           },
+          signal: controller.signal,
           body: JSON.stringify({
             messages: messagesForPlanning,
             mode: 'tech',
@@ -604,6 +631,7 @@ export default function App() {
           headers: {
             'Content-Type': 'application/json'
           },
+          signal: controller.signal,
           body: JSON.stringify({
             messages: messagesForExecution,
             mode: 'tech',
@@ -637,7 +665,11 @@ export default function App() {
           console.error("Error saving final text response to Firestore during regen:", err);
         }
 
-      } catch (err) {
+      } catch (err: any) {
+        if (err.name === 'AbortError') {
+          console.log("Regenerate planning was aborted");
+          return;
+        }
         console.error("Error in plan mode regeneration:", err);
       } finally {
         triggerHaptic(12);
@@ -653,6 +685,7 @@ export default function App() {
         headers: {
           'Content-Type': 'application/json'
         },
+        signal: controller.signal,
         body: JSON.stringify({
           messages: messagesToKeep.map(m => ({ role: m.role, content: m.content })),
           mode: mode,
@@ -685,7 +718,11 @@ export default function App() {
         console.error("Error saving regenerated response to Firestore:", err);
       }
       
-    } catch (e) {
+    } catch (e: any) {
+       if (e.name === 'AbortError') {
+         console.log("Regenerate standard message was aborted");
+         return;
+       }
        const newBotMsg: Message = {
            id: (Date.now() + 1).toString(),
            role: 'assistant',
@@ -825,6 +862,7 @@ export default function App() {
             typingLabel={typingLabel}
             onSendMessage={handleSendMessage}
             onRegenerate={handleRegenerateMessage}
+            onStopGeneration={handleStopGeneration}
             mode={mode}
             onModeChange={setMode}
             showTts={showTts}

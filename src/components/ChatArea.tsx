@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { Menu, Settings2, ArrowUp, Mic, MicOff, Paperclip, FileText, X, SlidersHorizontal } from 'lucide-react';
+import { Menu, Settings2, ArrowUp, Mic, MicOff, Paperclip, FileText, X, SlidersHorizontal, Square } from 'lucide-react';
 import ChatMessage, { TypingIndicator } from './ChatMessage';
 import { Message } from '../types';
 
@@ -20,6 +20,7 @@ interface ChatAreaProps {
   typingLabel?: string;
   onSendMessage: (content: string, rawAttachments?: { name: string; content: string; size: string }[]) => void;
   onRegenerate: () => void;
+  onStopGeneration?: () => void;
   mode: 'speed' | 'tech' | 'plan';
   onModeChange: (mode: 'speed' | 'tech' | 'plan') => void;
   showTts: boolean;
@@ -37,6 +38,7 @@ export default function ChatArea({
   typingLabel,
   onSendMessage, 
   onRegenerate, 
+  onStopGeneration,
   mode, 
   onModeChange,
   showTts,
@@ -483,16 +485,29 @@ export default function ChatArea({
                  </button>
                </div>
                
-               <motion.button 
-                 whileHover={{ scale: 1.05 }}
-                 whileTap={{ scale: 0.95 }}
-                 onClick={handleSend}
-                 disabled={!inputValue.trim() && attachments.length === 0}
-                 className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors border
-                            ${(inputValue.trim() || attachments.length > 0) ? 'bg-white/10 text-white border-white/20 hover:bg-white/20' : 'bg-[#111] text-white/40 border-[#222] hover:bg-white/5'}`}
-               >
-                 <ArrowUp size={16} strokeWidth={2} />
-               </motion.button>
+               {isTyping ? (
+                 <motion.button 
+                   whileHover={{ scale: 1.05 }}
+                   whileTap={{ scale: 0.95 }}
+                   onClick={onStopGeneration}
+                   title="Остановить генерацию"
+                   className="w-8 h-8 rounded-full flex items-center justify-center transition-colors border bg-red-500/20 text-red-400 border-red-500/30 hover:bg-red-500/30 cursor-pointer"
+                 >
+                   <Square size={11} fill="currentColor" strokeWidth={0} />
+                 </motion.button>
+               ) : (
+                 <motion.button 
+                   whileHover={{ scale: 1.05 }}
+                   whileTap={{ scale: 0.95 }}
+                   onClick={handleSend}
+                   disabled={!inputValue.trim() && attachments.length === 0}
+                   title="Отправить сообщение"
+                   className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors border
+                              ${(inputValue.trim() || attachments.length > 0) ? 'bg-white/10 text-white border-white/20 hover:bg-white/20' : 'bg-[#111] text-white/40 border-[#222] hover:bg-white/5'}`}
+                 >
+                   <ArrowUp size={16} strokeWidth={2} />
+                 </motion.button>
+               )}
               </div>
              </div>
            </div>
