@@ -151,12 +151,35 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
   useEffect(() => {
     if (message.isAnimated) {
       let index = 0;
+      const animateScramble = localStorage.getItem('yorn_loading_animation') === 'scramble';
+      const scrambleChars = '0123456789%@#$&*?+-/\\АБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЫЭЮЯабвгдежзийклмнопрстуфхцчшщыэюя';
+      
       const interval = setInterval(() => {
-        setDisplayedContent(message.content.substring(0, index));
-        index++;
-        if (index > message.content.length) {
-          clearInterval(interval);
+        if (animateScramble) {
+          if (index < message.content.length) {
+            const stable = message.content.substring(0, index);
+            const scrambleLength = Math.min(4, message.content.length - index);
+            let scrambledSuff = '';
+            for (let i = 0; i < scrambleLength; i++) {
+              const originalChar = message.content[index + i];
+              if (originalChar === ' ' || originalChar === '\n' || originalChar === '\t') {
+                scrambledSuff += originalChar;
+              } else {
+                scrambledSuff += scrambleChars[Math.floor(Math.random() * scrambleChars.length)];
+              }
+            }
+            setDisplayedContent(stable + scrambledSuff);
+          } else {
+            setDisplayedContent(message.content);
+            clearInterval(interval);
+          }
+        } else {
+          setDisplayedContent(message.content.substring(0, index));
+          if (index >= message.content.length) {
+            clearInterval(interval);
+          }
         }
+        index++;
       }, 15);
       
       return () => clearInterval(interval);
@@ -322,24 +345,56 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
 
 export default ChatMessage;
 
-export function TypingIndicator({ text }: { text?: string }) {
+export function ScramblingText({ text }: { text: string }) {
+  const [displayed, setDisplayed] = useState(text);
+  
+  useEffect(() => {
+    let frame = 0;
+    const interval = setInterval(() => {
+      frame++;
+      const scrambled = text.split('').map((char, idx) => {
+        if (char === ' ' || char === '\n' || char === '\r') return char;
+        if (idx > frame / 1.5) {
+          const scrambleSymbols = '0123456789%@#$&*?+-/\\АБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩ';
+          return scrambleSymbols[Math.floor(Math.random() * scrambleSymbols.length)];
+        }
+        return char;
+      }).join('');
+      setDisplayed(scrambled);
+      if (frame >= text.length * 2.5) {
+        frame = 0;
+      }
+    }, 45);
+    return () => clearInterval(interval);
+  }, [text]);
+
+  return <span className="font-mono">{displayed}</span>;
+}
+
+export function TypingIndicator({ text, animationStyle }: { text?: string; animationStyle?: string }) {
+  const isScramble = animationStyle === 'scramble';
+  const showDots = !animationStyle || animationStyle === 'default';
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       className="flex gap-4 items-center mb-8"
     >
-      <span className="text-[11px] italic text-neutral-400 tracking-wider font-light bg-[#111] px-2.5 py-1 rounded-full border border-[#222]/40 shadow-sm">{text || 'типирует'}</span>
-      <div className="flex gap-1 items-center">
-        {[0, 1, 2].map((i) => (
-          <motion.div
-            key={i}
-            animate={{ opacity: [0.3, 1, 0.3] }}
-            transition={{ duration: 1.4, repeat: Infinity, delay: i * 0.2 }}
-            className={`w-1.5 h-1.5 rounded-full ${i === 1 ? 'bg-purple-500' : 'bg-[#555]'}`}
-          />
-        ))}
-      </div>
+      <span className="text-[11px] italic text-neutral-400 tracking-wider font-light bg-[#111] px-2.5 py-1 rounded-full border border-[#222]/40 shadow-sm">
+        {isScramble ? <ScramblingText text={text || 'YorN ИИ расшифровывает...'} /> : (text || 'типирует')}
+      </span>
+      {showDots && (
+        <div className="flex gap-1 items-center">
+          {[0, 1, 2].map((i) => (
+            <motion.div
+              key={i}
+              animate={{ opacity: [0.3, 1, 0.3] }}
+              transition={{ duration: 1.4, repeat: Infinity, delay: i * 0.2 }}
+              className={`w-1.5 h-1.5 rounded-full ${i === 1 ? 'bg-purple-500' : 'bg-[#555]'}`}
+            />
+          ))}
+        </div>
+      )}
     </motion.div>
   );
 }

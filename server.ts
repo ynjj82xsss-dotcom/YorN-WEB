@@ -4,12 +4,12 @@ import { createServer as createViteServer } from 'vite';
 import { HfInference } from '@huggingface/inference';
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
-const HF_TOKEN = "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";
+const HF_TOKEN = process.env.HF_TOKEN || "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";
 const hf = new HfInference(HF_TOKEN);
 
 // Free, fast, high-quality instruction-tuned models on HF
@@ -20,7 +20,7 @@ const MODELS = [
 ];
 
 app.post('/api/chat', async (req, res) => {
-  const { messages, mode, systemPrompt } = req.body;
+  const { messages, mode, systemPrompt, temperature, topP } = req.body;
   if (!messages || !Array.isArray(messages)) {
     return res.status(400).json({ error: 'Invalid messages array' });
   }
@@ -60,13 +60,17 @@ app.post('/api/chat', async (req, res) => {
   let responseText = '';
   let modelUsed = '';
 
+  const tempVal = typeof temperature === 'number' ? temperature : 0.7;
+  const topPVal = typeof topP === 'number' ? topP : 0.9;
+
   for (const model of modelsToTry) {
     try {
       const response = await hf.chatCompletion({
         model: model,
         messages: formattedMessages,
         max_tokens: 512,
-        temperature: 0.7,
+        temperature: tempVal,
+        top_p: topPVal,
       });
 
       if (response.choices && response.choices.length > 0) {

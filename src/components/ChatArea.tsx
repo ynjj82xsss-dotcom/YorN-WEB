@@ -23,6 +23,7 @@ interface ChatAreaProps {
   onModeChange: (mode: 'speed' | 'tech' | 'plan') => void;
   showTts: boolean;
   showRegenerate: boolean;
+  loadingAnimation: string;
 }
 
 export default function ChatArea({ 
@@ -36,7 +37,8 @@ export default function ChatArea({
   mode, 
   onModeChange,
   showTts,
-  showRegenerate
+  showRegenerate,
+  loadingAnimation
 }: ChatAreaProps) {
   const [inputValue, setInputValue] = useState('');
   const [isRecording, setIsRecording] = useState(false);
@@ -287,7 +289,47 @@ export default function ChatArea({
                 />
               ));
             })()}
-            {isTyping && <TypingIndicator text={typingLabel} />}
+            {isTyping && loadingAnimation === 'circle' && (
+              <div className="flex justify-center items-center py-10">
+                <div className="relative w-36 h-36 flex items-center justify-center select-none">
+                  {/* Outer orbit */}
+                  <motion.div
+                    className="absolute w-32 h-32 border border-white/5 rounded-full"
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 10, repeat: Infinity, ease: 'linear' }}
+                  >
+                    <span className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 w-1.5 h-1.5 bg-purple-400 rounded-full shadow-[0_0_8px_#ac5dfa]" />
+                  </motion.div>
+                  {/* Inner orbit */}
+                  <motion.div
+                    className="absolute w-24 h-24 border border-dashed border-purple-500/20 rounded-full"
+                    animate={{ rotate: -360 }}
+                    transition={{ duration: 6, repeat: Infinity, ease: 'linear' }}
+                  />
+                  {/* Glow aura */}
+                  <motion.div
+                    className="absolute w-12 h-12 rounded-full bg-purple-500/10 blur-xl"
+                    animate={{ scale: [0.8, 1.2, 0.8], opacity: [0.3, 0.6, 0.3] }}
+                    transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+                  />
+                  {/* Center core */}
+                  <motion.div
+                    className="w-16 h-16 rounded-full bg-[#111] border border-white/10 flex items-center justify-center animate-pulse"
+                  >
+                    <svg className="w-5 h-5 text-neutral-400 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                  </motion.div>
+                  <div className="absolute top-[110%] text-center w-40">
+                    <span className="text-[9px] tracking-[0.2em] text-neutral-500 uppercase font-mono animate-pulse">
+                      {typingLabel || 'Анализ нейросети'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+            {isTyping && loadingAnimation !== 'circle' && <TypingIndicator text={typingLabel} animationStyle={loadingAnimation} />}
             <div ref={messagesEndRef} className="h-4" />
           </div>
         )}
@@ -297,7 +339,34 @@ export default function ChatArea({
       <div className="p-8 pb-6 bg-gradient-to-t from-[#050505] via-[#050505]/90 to-transparent">
         <div className="max-w-3xl mx-auto relative group">
            <div className="absolute -inset-0.5 bg-[#121212]/30 rounded-2xl blur opacity-0 group-hover:opacity-100 transition duration-1000"></div>
-           <div className="relative bg-[#0A0A0A] border border-[#1A1A1A] rounded-2xl focus-within:border-[#333] transition-colors p-4 shadow-2xl flex flex-col">
+           <div className={`relative rounded-2xl transition-all shadow-2xl flex flex-col ${
+             isTyping && loadingAnimation === 'border' 
+               ? 'p-[1.5px]' 
+               : 'border border-[#1A1A1A] focus-within:border-[#333] bg-[#0A0A0A] p-4'
+           }`}>
+             {isTyping && loadingAnimation === 'border' && (
+               <motion.div
+                 style={{
+                   position: 'absolute',
+                   inset: 0,
+                   borderRadius: '1rem',
+                   background: 'linear-gradient(90deg, #a855f7, #6366f1, #3b82f6, #ec4899, #a855f7)',
+                   backgroundSize: '200% 200%',
+                   zIndex: 0,
+                 }}
+                 animate={{
+                   backgroundPosition: ['0% 50%', '100% 50%', '0% 50%']
+                 }}
+                 transition={{
+                   duration: 3,
+                   repeat: Infinity,
+                   ease: 'linear'
+                 }}
+               />
+             )}
+             <div className={`relative flex flex-col w-full h-full z-10 ${
+               isTyping && loadingAnimation === 'border' ? 'bg-[#0A0A0A] p-4 rounded-[15px]' : ''
+             }`}>
              
              {/* Render parsed attachment list above the input text field */}
              {attachments.length > 0 && (
@@ -409,6 +478,7 @@ export default function ChatArea({
                >
                  <ArrowUp size={16} strokeWidth={2} />
                </motion.button>
+              </div>
              </div>
            </div>
            <div className="text-center mt-4 text-[10px] text-[#444] font-medium tracking-wide">

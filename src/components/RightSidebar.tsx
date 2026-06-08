@@ -15,6 +15,12 @@ interface RightSidebarProps {
   setShowTts: (val: boolean) => void;
   showRegenerate: boolean;
   setShowRegenerate: (val: boolean) => void;
+  loadingAnimation: string;
+  setLoadingAnimation: (val: string) => void;
+  temperature: number;
+  setTemperature: (val: number) => void;
+  topP: number;
+  setTopP: (val: number) => void;
 }
 
 export default function RightSidebar({ 
@@ -28,7 +34,13 @@ export default function RightSidebar({
   showTts,
   setShowTts,
   showRegenerate,
-  setShowRegenerate
+  setShowRegenerate,
+  loadingAnimation,
+  setLoadingAnimation,
+  temperature,
+  setTemperature,
+  topP,
+  setTopP
 }: RightSidebarProps) {
   const [activeTab, setActiveTab] = useState<'profile' | 'settings'>('profile');
   return (
@@ -109,28 +121,38 @@ export default function RightSidebar({
 
                 {/* Parameters */}
                 <div className="space-y-6 pt-2">
-                  <p className="text-[10px] uppercase tracking-[0.2em] text-[#444] font-semibold">Точная настройка (Read-only)</p>
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-[#444] font-semibold">Точная настройка</p>
                   <div className="space-y-4">
                     <div>
                       <div className="flex justify-between mb-2">
                         <label className="text-[11px] text-[#666]">Свобода (Температура)</label>
-                        <span className="text-[11px] text-[#AAA]">0.74</span>
+                        <span className="text-[11px] text-[#AAA]">{temperature.toFixed(2)}</span>
                       </div>
-                      <div className="h-1 w-full bg-[#1A1A1A] rounded-full relative">
-                        <div className="absolute left-0 top-0 h-full w-[74%] bg-[#333] rounded-full"></div>
-                        <div className="absolute left-[74%] top-1/2 -translate-y-1/2 w-3 h-3 bg-[#E0E0E0] rounded-full border-2 border-[#050505] shadow-lg"></div>
-                      </div>
+                      <input 
+                        type="range" 
+                        min="0" 
+                        max="2" 
+                        step="0.01" 
+                        value={temperature} 
+                        onChange={(e) => setTemperature(parseFloat(e.target.value))}
+                        className="w-full h-[3px] bg-[#1A1A1A] rounded-lg appearance-none cursor-pointer accent-[#E0E0E0] hover:accent-white focus:outline-none"
+                      />
                     </div>
 
                     <div>
                       <div className="flex justify-between mb-2">
                         <label className="text-[11px] text-[#666]">Top-P Sampling</label>
-                        <span className="text-[11px] text-[#AAA]">0.90</span>
+                        <span className="text-[11px] text-[#AAA]">{topP.toFixed(2)}</span>
                       </div>
-                      <div className="h-1 w-full bg-[#1A1A1A] rounded-full relative">
-                        <div className="absolute left-0 top-0 h-full w-[90%] bg-[#333] rounded-full"></div>
-                        <div className="absolute left-[90%] top-1/2 -translate-y-1/2 w-3 h-3 bg-[#E0E0E0] rounded-full border-2 border-[#050505]"></div>
-                      </div>
+                      <input 
+                        type="range" 
+                        min="0" 
+                        max="1" 
+                        step="0.01" 
+                        value={topP} 
+                        onChange={(e) => setTopP(parseFloat(e.target.value))}
+                        className="w-full h-[3px] bg-[#1A1A1A] rounded-lg appearance-none cursor-pointer accent-[#E0E0E0] hover:accent-white focus:outline-none"
+                      />
                     </div>
                   </div>
                 </div>
@@ -144,11 +166,26 @@ export default function RightSidebar({
                     <select 
                       value={theme}
                       onChange={(e) => setTheme(e.target.value)}
-                      className="w-full bg-[#121212] border border-[#222] text-[#E0E0E0] text-sm rounded-lg p-2.5 outline-none focus:border-[#444] transition-colors"
+                      className="w-full bg-[#121212] border border-[#222] text-[#E0E0E0] text-sm rounded-lg p-2.5 outline-none focus:border-[#444] transition-colors mb-5"
                     >
                       <option value="dark">Тёмная (По умолчанию)</option>
                       <option value="cosmic">Космическая</option>
                       <option value="light">Светлая</option>
+                    </select>
+                  </div>
+
+                  {/* Loading Animation Settings */}
+                  <div>
+                    <label className="text-[10px] uppercase tracking-[0.2em] text-[#444] font-semibold block mb-4">Ожидание ответа ИИ</label>
+                    <select 
+                      value={loadingAnimation}
+                      onChange={(e) => setLoadingAnimation(e.target.value)}
+                      className="w-full bg-[#121212] border border-[#222] text-[#E0E0E0] text-sm rounded-lg p-2.5 outline-none focus:border-[#444] transition-colors"
+                    >
+                      <option value="default">1) Как сейчас (Точки)</option>
+                      <option value="border">2) Анимированная обводка</option>
+                      <option value="circle">3) Круг на экране (Радар)</option>
+                      <option value="scramble">4) Перебор букв (Матрица)</option>
                     </select>
                   </div>
 

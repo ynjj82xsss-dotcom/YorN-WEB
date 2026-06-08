@@ -1,8 +1,70 @@
-node_modules/
-build/
-dist/
-coverage/
-.DS_Store
-*.log
-.env*
-!.env.example
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // 1. Global Safety Net: default-deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // 2. Sessions collection
+    match /sessions/{sessionId} {
+      allow create: if isSignedIn()
+        && isValidId(sessionId)
+        && incoming().userId == request.auth.uid
+        && incoming().title is string && incoming().title.size() <= 200
+        && incoming().date is string && incoming().date.size() <= 50
+        && incoming().createdAt is string && incoming().createdAt.size() <= 50;
+
+      allow read: if isSignedIn() && existing().userId == request.auth.uid;
+
+      allow update: if isSignedIn()
+        && existing().userId == request.auth.uid
+        && incoming().userId == existing().userId
+        && incoming().createdAt == existing().createdAt
+        && incoming().title is string && incoming().title.size() <= 200
+        && incoming().diff(existing()).affectedKeys().hasOnly(['title']);
+
+      allow delete: if isSignedIn() && existing().userId == request.auth.uid;
+
+      // 3. Messages subcollection (Master Gate relation check)
+      match /messages/{messageId} {
+        function parentSessionOwner() {
+          return get(/databases/$(database)/documents/sessions/$(sessionId)).data.userId;
+        }
+
+        allow create: if isSignedIn()
+          && isValidId(messageId)
+          && isOwner(parentSessionOwner())
+          && (incoming().role == 'user' || incoming().role == 'assistant')
+          && incoming().content is string && incoming().content.size() <= 65536
+          && incoming().timestamp is string && incoming().timestamp.size() <= 50;
+
+        allow read: if isSignedIn() && isOwner(parentSessionOwner());
+        
+        allow delete: if isSignedIn() && isOwner(parentSessionOwner());
+      }
+    }
+  }
+}
