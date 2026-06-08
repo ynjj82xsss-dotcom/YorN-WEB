@@ -18,3 +18,13 @@ export type ChatSession = {
   date: string;
   messages: Message[];
 };
+
+export interface AppNotification {
+  id: string;
+  title: string;
+  content: string;
+  timestamp: string; // ISO String
+  type: 'info' | 'warning' | 'system' | 'success';
+  author: string;
+}
+

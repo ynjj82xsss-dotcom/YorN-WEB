@@ -9,10 +9,12 @@ import {
   query, 
   where, 
   orderBy, 
-  getDocFromServer 
+  getDocFromServer,
+  onSnapshot,
+  limit
 } from 'firebase/firestore';
 import { db, auth } from './firebase';
-import { ChatSession, Message } from '../types';
+import { ChatSession, Message, AppNotification } from '../types';
 
 export enum OperationType {
   CREATE = 'create',
@@ -238,3 +240,131 @@ export async function saveFirestoreMessage(sessionId: string, message: Message) 
     handleFirestoreError(error, OperationType.WRITE, path);
   }
 }
+
+// Subscribe to real-time general notification broadcasts
+export function subscribeToNotifications(
+  callback: (notifications: AppNotification[]) => void,
+  onError?: (err: any) => void
+): () => void {
+  const notificationsCol = collection(db, 'notifications');
+  const q = query(notificationsCol, orderBy('timestamp', 'desc'), limit(50));
+
+  // Listen to Firestore real-time snapshots
+  const unsubscribe = onSnapshot(q, (snapshot) => {
+    const list: AppNotification[] = [];
+    snapshot.forEach((snapDoc) => {
+      const data = snapDoc.data();
+      list.push({
+        id: snapDoc.id,
+        title: data.title || '',
+        content: data.content || '',
+        timestamp: data.timestamp || new Date().toISOString(),
+        type: data.type || 'info',
+        author: data.author || 'YorN AI System',
+      });
+    });
+
+    // If Firestore is empty or newly created, append some default offline notifications for user onboarding
+    if (list.length === 0) {
+      const localNotificationKey = 'yorn_local_notifications';
+      const stored = localStorage.getItem(localNotificationKey);
+      if (stored) {
+        callback(JSON.parse(stored));
+      } else {
+        const defaultList: AppNotification[] = [
+          {
+            id: 'init-notification',
+            title: 'Добро пожаловать в YorN AI',
+            content: 'Рады приветствовать вас в атмосферном нейросетевом пространстве. Все ваши сессии сохраняются локально или в облаке Firestore.',
+            timestamp: new Date(Date.now() - 3600000).toISOString(), // 1 hour ago
+            type: 'system',
+            author: 'YorN AI Command',
+          },
+          {
+            id: 'mode-update',
+            title: 'Интегрирован Failover-движок',
+            content: 'Добавлено умное переключение между тремя ведущими языковыми моделями при пиковых нагрузках.',
+            timestamp: new Date(Date.now() - 172800000).toISOString(), // 2 days ago
+            type: 'success',
+            author: 'Техподдержка',
+          }
+        ];
+        localStorage.setItem(localNotificationKey, JSON.stringify(defaultList));
+        callback(defaultList);
+      }
+    } else {
+      callback(list);
+    }
+  }, (err) => {
+    console.warn("Firestore notification subscribe error, falling back to local storage:", err);
+    if (onError) onError(err);
+    
+    // Fallback to local storage for offline or permission-denied cases
+    const localNotificationKey = 'yorn_local_notifications';
+    const stored = localStorage.getItem(localNotificationKey);
+    if (stored) {
+      callback(JSON.parse(stored));
+    } else {
+      const defaultList: AppNotification[] = [
+        {
+          id: 'init-notification',
+          title: 'Добро пожаловать в YorN AI',
+          content: 'Рады приветствовать вас в атмосферном нейросетевом пространстве. Все ваши сессии сохраняются локально или в облаке Firestore.',
+          timestamp: new Date(Date.now() - 3600000).toISOString(),
+          type: 'system',
+          author: 'YorN AI Command',
+        }
+      ];
+      callback(defaultList);
+    }
+  });
+
+  return unsubscribe;
+}
+
+// Publish/Broadcast a new notification system-wide
+export async function publishNotification(
+  notification: Omit<AppNotification, 'id'>
+): Promise<string> {
+  const notificationId = 'notif_' + Math.random().toString(36).substring(2, 11);
+  const path = `notifications/${notificationId}`;
+  
+  // Write to firestore first
+  try {
+    await setDoc(doc(db, 'notifications', notificationId), {
+      title: notification.title,
+      content: notification.content,
+      timestamp: notification.timestamp,
+      type: notification.type,
+      author: notification.author || 'YorN AI System',
+    });
+  } catch (error) {
+    console.warn("Could not write broadcast to Firestore, saving to localStorage as fallback:", error);
+    // Also store locally as fallback
+  }
+
+  // Handle local backup and sync
+  const localNotificationKey = 'yorn_local_notifications';
+  const stored = localStorage.getItem(localNotificationKey);
+  const currentLocal: AppNotification[] = stored ? JSON.parse(stored) : [
+    {
+      id: 'init-notification',
+      title: 'Добро пожаловать в YorN AI',
+      content: 'Рады приветствовать вас в атмосферном нейросетевом пространстве. Все ваши сессии сохраняются локально или в облаке Firestore.',
+      timestamp: new Date(Date.now() - 3600000).toISOString(),
+      type: 'system',
+      author: 'YorN AI Command',
+    }
+  ];
+
+  const newNotif: AppNotification = {
+    id: notificationId,
+    ...notification,
+  };
+
+  const updatedLocal = [newNotif, ...currentLocal].slice(0, 50);
+  localStorage.setItem(localNotificationKey, JSON.stringify(updatedLocal));
+
+  return notificationId;
+}
+

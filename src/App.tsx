@@ -12,14 +12,19 @@ import {
   saveFirestoreSession, 
   updateFirestoreSessionTitle, 
   deleteFirestoreSession, 
-  saveFirestoreMessage 
+  saveFirestoreMessage,
+  subscribeToNotifications,
+  publishNotification
 } from './lib/firebaseService';
 import Background from './components/Background';
 import LeftSidebar from './components/LeftSidebar';
 import RightSidebar from './components/RightSidebar';
 import ChatArea from './components/ChatArea';
-import { ChatSession, Message } from './types';
+import NotificationsPanel from './components/NotificationsPanel';
+import { ChatSession, Message, AppNotification } from './types';
 import SplashLoader from './components/SplashLoader';
+import { motion, AnimatePresence } from 'motion/react';
+import { Bell, X } from 'lucide-react';
 
 export default function App() {
   const [isLeftOpen, setIsLeftOpen] = useState(() => {
@@ -35,6 +40,72 @@ export default function App() {
   const [showSplash, setShowSplash] = useState(true);
   const [isMobileDevice, setIsMobileDevice] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Notification states
+  const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [readNotificationIds, setReadNotificationIds] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('yorn_read_notifications');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [activeToast, setActiveToast] = useState<AppNotification | null>(null);
+
+  // Subscribe to real-time notification broadcasts
+  useEffect(() => {
+    let isFirstLoad = true;
+    const unsubscribe = subscribeToNotifications((list) => {
+      setNotifications(list);
+      
+      // If there's an incoming new message that we have not read, trigger a top toast
+      if (!isFirstLoad && list.length > 0) {
+        const latest = list[0];
+        const localRead = localStorage.getItem('yorn_read_notifications');
+        const readIds: string[] = localRead ? JSON.parse(localRead) : [];
+        if (!readIds.includes(latest.id)) {
+          setActiveToast(latest);
+          triggerHaptic(65); // Strong haptic on real-time alert
+        }
+      }
+      isFirstLoad = false;
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const handleMarkAsRead = (id: string) => {
+    if (!readNotificationIds.includes(id)) {
+      const updated = [...readNotificationIds, id];
+      setReadNotificationIds(updated);
+      localStorage.setItem('yorn_read_notifications', JSON.stringify(updated));
+    }
+  };
+
+  const handleMarkAllAsRead = () => {
+    const unread = notifications.filter(n => !readNotificationIds.includes(n.id));
+    if (unread.length > 0) {
+      const updated = [...readNotificationIds, ...unread.map(n => n.id)];
+      setReadNotificationIds(updated);
+      localStorage.setItem('yorn_read_notifications', JSON.stringify(updated));
+      triggerHaptic(15);
+    }
+  };
+
+  const handleClearNotifications = () => {
+    setNotifications([]);
+    setReadNotificationIds([]);
+    localStorage.removeItem('yorn_read_notifications');
+    localStorage.setItem('yorn_local_notifications', JSON.stringify([]));
+    triggerHaptic(20);
+  };
+
+  const handlePublishBroadcast = async (notifData: Omit<AppNotification, 'id'>) => {
+    await publishNotification(notifData);
+    triggerHaptic(40);
+  };
 
   const handleStopGeneration = () => {
     if (abortControllerRef.current) {
@@ -869,6 +940,8 @@ export default function App() {
             showRegenerate={showRegenerate}
             loadingAnimation={loadingAnimation}
             isMobileDevice={isMobileDevice}
+            unreadNotificationsCount={notifications.filter(n => !readNotificationIds.includes(n.id)).length}
+            onOpenNotifications={() => setIsNotifOpen(true)}
           />
         </div>
 
@@ -892,6 +965,57 @@ export default function App() {
           setTopP={setTopP}
           isMobileDevice={isMobileDevice}
         />
+
+        <NotificationsPanel
+          isOpen={isNotifOpen}
+          onClose={() => setIsNotifOpen(false)}
+          notifications={notifications}
+          readNotificationIds={readNotificationIds}
+          onMarkAsRead={handleMarkAsRead}
+          onMarkAllAsRead={handleMarkAllAsRead}
+          onClearNotifications={handleClearNotifications}
+          onPublishBroadcast={handlePublishBroadcast}
+          isMobileDevice={isMobileDevice}
+          currentUserEmail={user?.email || null}
+        />
+
+        {/* Real-time Toast Notification Alert */}
+        <AnimatePresence>
+          {activeToast && (
+            <motion.div
+              initial={{ opacity: 0, y: -50, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -20, scale: 0.95 }}
+              onClick={() => {
+                handleMarkAsRead(activeToast.id);
+                setIsNotifOpen(true);
+                setActiveToast(null);
+              }}
+              className="fixed top-4 left-1/2 -translate-x-1/2 z-50 w-[90%] max-w-[340px] p-4 rounded-2xl bg-[#080808] border border-purple-500/30 shadow-[0_15px_30px_rgba(0,0,0,0.8)] backdrop-blur-md flex gap-3 cursor-pointer items-start select-none"
+            >
+              <div className="w-8 h-8 rounded-full bg-purple-500/10 flex items-center justify-center border border-purple-500/20 text-purple-400 shrink-0">
+                <Bell size={14} className="animate-bounce" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[9px] uppercase tracking-wider text-purple-400 font-bold">Оповещение системы</p>
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleMarkAsRead(activeToast.id);
+                      setActiveToast(null);
+                    }}
+                    className="text-[#444] hover:text-[#AAA] p-0.5 rounded-lg transition-colors cursor-pointer"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+                <p className="text-xs font-semibold text-white mt-0.5 truncate">{activeToast.title}</p>
+                <p className="text-[10px] text-[#888] mt-0.5 line-clamp-2 leading-relaxed">{activeToast.content}</p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );

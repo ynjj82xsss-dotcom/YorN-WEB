@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { Menu, Settings2, ArrowUp, Mic, MicOff, Paperclip, FileText, X, SlidersHorizontal, Square } from 'lucide-react';
+import { Menu, Settings2, ArrowUp, Mic, MicOff, Paperclip, FileText, X, SlidersHorizontal, Square, Bell } from 'lucide-react';
 import ChatMessage, { TypingIndicator } from './ChatMessage';
 import { Message } from '../types';
 
@@ -27,6 +27,8 @@ interface ChatAreaProps {
   showRegenerate: boolean;
   loadingAnimation: string;
   isMobileDevice?: boolean;
+  unreadNotificationsCount?: number;
+  onOpenNotifications?: () => void;
 }
 
 export default function ChatArea({ 
@@ -44,7 +46,9 @@ export default function ChatArea({
   showTts,
   showRegenerate,
   loadingAnimation,
-  isMobileDevice = false
+  isMobileDevice = false,
+  unreadNotificationsCount = 0,
+  onOpenNotifications
 }: ChatAreaProps) {
   const [inputValue, setInputValue] = useState('');
   const [isRecording, setIsRecording] = useState(false);
@@ -267,13 +271,26 @@ export default function ChatArea({
             )}
           </div>
           <span className="text-xs font-light tracking-wide text-[#666]">Neural Session: <span className="text-[#AAA]">Alpha</span></span>
-          <button 
-            onClick={onOpenRightMenu}
-            className="p-2 text-[#666] hover:text-[#AAA] hover:bg-[#121212]/50 rounded-lg transition-all cursor-pointer flex items-center justify-center"
-            title="Профиль и настройки"
-          >
-            <SlidersHorizontal size={16} />
-          </button>
+          <div className="flex items-center gap-1">
+            <button 
+              onClick={onOpenNotifications}
+              className="p-2 text-[#666] hover:text-[#AAA] hover:bg-[#121212]/50 rounded-lg transition-all cursor-pointer flex items-center justify-center relative"
+              title="Уведомления и рассылка"
+            >
+              <Bell size={15} className={unreadNotificationsCount > 0 ? "text-purple-400 animate-pulse" : ""} />
+              {unreadNotificationsCount > 0 && (
+                <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-purple-500 shadow-[0_0_8px_#a855f7]" />
+              )}
+            </button>
+            
+            <button 
+              onClick={onOpenRightMenu}
+              className="p-2 text-[#666] hover:text-[#AAA] hover:bg-[#121212]/50 rounded-lg transition-all cursor-pointer flex items-center justify-center"
+              title="Профиль и настройки"
+            >
+              <SlidersHorizontal size={15} />
+            </button>
+          </div>
         </div>
       </div>
 
