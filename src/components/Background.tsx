@@ -2,68 +2,84 @@ import { motion } from 'motion/react';
 
 interface BackgroundProps {
   isTyping?: boolean;
+  isMobileDevice?: boolean;
 }
 
-export default function Background({ isTyping }: BackgroundProps) {
+export default function Background({ isTyping, isMobileDevice }: BackgroundProps) {
+  // Compute optimized values based on device detection
+  const blurValue1 = isMobileDevice ? 'blur-[65px]' : 'blur-[100px]';
+  const blurValue2 = isMobileDevice ? 'blur-[75px]' : 'blur-[120px]';
+  const blurValue3 = isMobileDevice ? 'blur-[60px]' : 'blur-[100px]';
+
+  // Reduce translation frames on mobile to prevent intensive composite paints
+  const translateKeyframes1 = isMobileDevice 
+    ? { x: ['0%', '5%', '0%'], y: ['0%', '-5%', '0%'] }
+    : { x: ['0%', '15%', '-10%', '0%'], y: ['0%', '-15%', '10%', '0%'] };
+
+  const translateKeyframes2 = isMobileDevice
+    ? { x: ['0%', '-6%', '0%'], y: ['0%', '6%', '0%'] }
+    : { x: ['0%', '-20%', '15%', '0%'], y: ['0%', '15%', '-20%', '0%'] };
+
+  // Adjust timing to be slower and gentler on low-end processors
+  const durationMultiplier = isMobileDevice ? 1.6 : 1.0;
+
   return (
     <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none bg-[#050505]">
       {/* Blob 1 */}
       <motion.div
         animate={{
-          x: ['0%', '15%', '-10%', '0%'],
-          y: ['0%', '-15%', '10%', '0%'],
-          opacity: isTyping ? [0.4, 0.75, 0.4] : [0.2, 0.4, 0.2],
+          ...translateKeyframes1,
+          opacity: isTyping ? [0.35, 0.6, 0.35] : [0.15, 0.3, 0.15],
           backgroundColor: isTyping ? '#5b21b6' : '#121212',
-          scale: isTyping ? [1, 1.18, 1] : 1
+          scale: isTyping ? [1, 1.08, 1] : 1
         }}
         transition={{ 
-          duration: isTyping ? 12 : 25, 
+          duration: (isTyping ? 12 : 25) * durationMultiplier, 
           repeat: Infinity, 
           ease: 'linear', 
           backgroundColor: { duration: 0.8 },
-          scale: { duration: 2.2, repeat: Infinity, ease: 'easeInOut' } 
+          scale: { duration: 3.5, repeat: Infinity, ease: 'easeInOut' } 
         }}
-        className="absolute top-[-10%] left-[-5%] w-[400px] h-[400px] rounded-full blur-[100px] will-change-transform"
+        className={`absolute top-[-10%] left-[-5%] w-[320px] md:w-[400px] h-[320px] md:h-[400px] rounded-full will-change-transform ${blurValue1}`}
       />
 
       {/* Blob 2 */}
       <motion.div
         animate={{
-          x: ['0%', '-20%', '15%', '0%'],
-          y: ['0%', '15%', '-20%', '0%'],
-          opacity: isTyping ? [0.35, 0.7, 0.35] : [0.15, 0.3, 0.15],
+          ...translateKeyframes2,
+          opacity: isTyping ? [0.3, 0.55, 0.3] : [0.1, 0.25, 0.1],
           backgroundColor: isTyping ? '#701a75' : '#1A1A1A',
-          scale: isTyping ? [1, 1.15, 1] : 1
+          scale: isTyping ? [1, 1.06, 1] : 1
         }}
         transition={{ 
-          duration: isTyping ? 15 : 32, 
+          duration: (isTyping ? 15 : 32) * durationMultiplier, 
           repeat: Infinity, 
           ease: 'linear', 
           backgroundColor: { duration: 0.8 },
-          scale: { duration: 2.8, repeat: Infinity, ease: 'easeInOut' }
+          scale: { duration: 4.0, repeat: Infinity, ease: 'easeInOut' }
         }}
-        className="absolute bottom-[-15%] right-[-10%] w-[500px] h-[500px] rounded-full blur-[120px] will-change-transform"
+        className={`absolute bottom-[-15%] right-[-10%] w-[380px] md:w-[500px] h-[380px] md:h-[500px] rounded-full will-change-transform ${blurValue2}`}
       />
       
       {/* subtle central glow */}
       <motion.div
         animate={{
-          opacity: isTyping ? [0.5, 0.85, 0.5] : [0.3, 0.5, 0.3],
+          opacity: isTyping ? [0.4, 0.65, 0.4] : [0.2, 0.35, 0.2],
           backgroundColor: isTyping ? '#6b21a8' : '#0F0F0F',
-          scale: isTyping ? [1.1, 1.35, 1.1] : [1, 1, 1],
+          scale: isTyping ? [1.05, 1.15, 1.05] : [1, 1, 1],
         }}
         transition={{ 
-          duration: isTyping ? 8 : 15, 
+          duration: (isTyping ? 8 : 15) * durationMultiplier, 
           repeat: Infinity, 
           ease: 'easeInOut', 
           backgroundColor: { duration: 0.8 }, 
-          scale: { duration: 1.8, repeat: Infinity, ease: 'easeInOut' } 
+          scale: { duration: 2.2, repeat: Infinity, ease: 'easeInOut' } 
         }}
-        className="absolute top-[30%] left-[40%] w-[300px] h-[300px] rounded-full blur-[100px] will-change-transform"
+        className={`absolute top-[30%] left-[30%] md:left-[40%] w-[240px] md:w-[300px] h-[240px] md:h-[300px] rounded-full will-change-transform ${blurValue3}`}
       />
 
-      {/* Animated Full-Screen Screen-Edge Vignette Breathing Pulsar when typing */}
-      {isTyping && (
+      {/* Animated Full-Screen Screen-Edge Vignette Breathing Pulsar when typing - Only on PC */}
+      {isTyping && !isMobileDevice && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: [0.2, 0.65, 0.2] }}
@@ -79,8 +95,8 @@ export default function Background({ isTyping }: BackgroundProps) {
         />
       )}
 
-      {/* Dedicated high-frequency neural thinking heartbeat core */}
-      {isTyping && (
+      {/* Dedicated neural thinking core - Only on PC */}
+      {isTyping && !isMobileDevice && (
         <motion.div
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ 

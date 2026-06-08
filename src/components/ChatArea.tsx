@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { Menu, Settings2, ArrowUp, Mic, MicOff, Paperclip, FileText, X } from 'lucide-react';
+import { Menu, Settings2, ArrowUp, Mic, MicOff, Paperclip, FileText, X, SlidersHorizontal } from 'lucide-react';
 import ChatMessage, { TypingIndicator } from './ChatMessage';
 import { Message } from '../types';
 
@@ -14,6 +14,7 @@ declare global {
 interface ChatAreaProps {
   onOpenLeftMenu: () => void;
   isLeftOpen: boolean;
+  onOpenRightMenu: () => void;
   messages: Message[];
   isTyping: boolean;
   typingLabel?: string;
@@ -24,11 +25,13 @@ interface ChatAreaProps {
   showTts: boolean;
   showRegenerate: boolean;
   loadingAnimation: string;
+  isMobileDevice?: boolean;
 }
 
 export default function ChatArea({ 
   onOpenLeftMenu, 
   isLeftOpen, 
+  onOpenRightMenu,
   messages, 
   isTyping, 
   typingLabel,
@@ -38,7 +41,8 @@ export default function ChatArea({
   onModeChange,
   showTts,
   showRegenerate,
-  loadingAnimation
+  loadingAnimation,
+  isMobileDevice = false
 }: ChatAreaProps) {
   const [inputValue, setInputValue] = useState('');
   const [isRecording, setIsRecording] = useState(false);
@@ -116,6 +120,11 @@ export default function ChatArea({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // On mobile devices, let the digital keyboard behave naturally (create newline) 
+    // instead of submitting a half-typed message instantly.
+    if (isMobileDevice) {
+      return;
+    }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       if (inputValue.trim() || attachments.length > 0) {
@@ -229,7 +238,7 @@ export default function ChatArea({
       />
       
       {/* Top Header */}
-      <div className="border-b border-[#1A1A1A] bg-[#050505]/45 backdrop-blur-md sticky top-0 z-20 w-full">
+      <div className="border-b border-[#1A1A1A] bg-[#050505]/45 backdrop-blur-md sticky top-0 z-20 w-full pt-[env(safe-area-inset-top,0px)]">
         <div className="w-full flex items-center justify-between p-3 px-4 md:px-6">
           <div className="flex items-center gap-4">
             <button 
@@ -256,7 +265,13 @@ export default function ChatArea({
             )}
           </div>
           <span className="text-xs font-light tracking-wide text-[#666]">Neural Session: <span className="text-[#AAA]">Alpha</span></span>
-          <div className="w-9" /> {/* Spacer for symmetry */}
+          <button 
+            onClick={onOpenRightMenu}
+            className="p-2 text-[#666] hover:text-[#AAA] hover:bg-[#121212]/50 rounded-lg transition-all cursor-pointer flex items-center justify-center"
+            title="Профиль и настройки"
+          >
+            <SlidersHorizontal size={16} />
+          </button>
         </div>
       </div>
 
@@ -336,7 +351,7 @@ export default function ChatArea({
       </div>
 
       {/* Input Area */}
-      <div className="p-8 pb-6 bg-gradient-to-t from-[#050505] via-[#050505]/90 to-transparent">
+      <div className="p-4 md:p-8 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] md:pb-6 bg-gradient-to-t from-[#050505] via-[#050505]/90 to-transparent">
         <div className="max-w-3xl mx-auto relative group">
            <div className="absolute -inset-0.5 bg-[#121212]/30 rounded-2xl blur opacity-0 group-hover:opacity-100 transition duration-1000"></div>
            <div className={`relative rounded-2xl transition-all shadow-2xl flex flex-col ${
@@ -394,7 +409,7 @@ export default function ChatArea({
                onChange={handleInput}
                onKeyDown={handleKeyDown}
                placeholder="Спросите YorN или перетащите его сюда файлы..."
-               className="w-full bg-transparent border-none outline-none text-sm text-[#AAA] placeholder-[#444] resize-none leading-relaxed min-h-[48px] max-h-[150px] scrollbar-hide"
+               className="w-full bg-transparent border-none outline-none text-base md:text-sm text-[#AAA] placeholder-[#444] resize-none leading-relaxed min-h-[48px] max-h-[150px] scrollbar-hide"
                rows={1}
              />
              {micError && (

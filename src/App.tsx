@@ -33,6 +33,30 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(true);
   const [dbLoading, setDbLoading] = useState(false);
   const [showSplash, setShowSplash] = useState(true);
+  const [isMobileDevice, setIsMobileDevice] = useState(false);
+
+  useEffect(() => {
+    const detectDevice = () => {
+      const uA = navigator.userAgent || '';
+      const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+      const isSmall = window.innerWidth < 1024;
+      const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(uA);
+      setIsMobileDevice(isMobileUA || (isTouch && isSmall));
+    };
+    detectDevice();
+    window.addEventListener('resize', detectDevice);
+    return () => window.removeEventListener('resize', detectDevice);
+  }, []);
+
+  const triggerHaptic = (ms = 12) => {
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+      try {
+        navigator.vibrate(ms);
+      } catch (e) {
+        // Safe fall-through
+      }
+    }
+  };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -166,6 +190,7 @@ export default function App() {
   }, []);
 
   const handleDeleteSession = async (id: string) => {
+    triggerHaptic(20);
     setSessions(prev => prev.filter(s => s.id !== id));
     if (currentSessionId === id) {
       setCurrentSessionId(null);
@@ -180,6 +205,7 @@ export default function App() {
   };
 
   const handleRenameSession = async (id: string, newTitle: string) => {
+    triggerHaptic(10);
     setSessions(prev => prev.map(s => s.id === id ? { ...s, title: newTitle } : s));
     if (user) {
       try {
@@ -195,11 +221,13 @@ export default function App() {
   const currentMessages = currentSession?.messages || [];
 
   const handleNewChat = () => {
+    triggerHaptic(15);
     setCurrentSessionId(null);
     if (window.innerWidth < 1024) setIsLeftOpen(false);
   };
 
   const handleSelectSession = (id: string) => {
+    triggerHaptic(10);
     setCurrentSessionId(id);
     if (window.innerWidth < 1024) setIsLeftOpen(false);
   };
@@ -380,6 +408,7 @@ export default function App() {
             : s
         ));
       } finally {
+        triggerHaptic(12);
         setIsTyping(false);
         setTypingLabel(undefined);
       }
@@ -462,6 +491,7 @@ export default function App() {
          console.error("Error saving error bot reply to Firestore:", err);
        }
     } finally {
+       triggerHaptic(12);
        setIsTyping(false);
     }
   };
@@ -610,6 +640,7 @@ export default function App() {
       } catch (err) {
         console.error("Error in plan mode regeneration:", err);
       } finally {
+        triggerHaptic(12);
         setIsTyping(false);
         setTypingLabel(undefined);
       }
@@ -674,6 +705,7 @@ export default function App() {
          console.error("Error saving regenerated error message to Firestore:", err);
        }
     } finally {
+       triggerHaptic(12);
        setIsTyping(false);
     }
   };
@@ -750,7 +782,7 @@ export default function App() {
 
   return (
     <div className="relative h-[100dvh] w-full flex overflow-hidden" data-theme={theme}>
-      <Background isTyping={isTyping && loadingAnimation === 'default'} />
+      <Background isTyping={isTyping && loadingAnimation === 'default'} isMobileDevice={isMobileDevice} />
       
       {/* Main Container */}
       <div className="z-10 flex w-full h-full relative">
@@ -768,9 +800,9 @@ export default function App() {
           onLogin={() => {
             signInWithPopup(auth, googleProvider).catch((error) => {
               if (error.code === 'auth/unauthorized-domain') {
-                alert('Для работы авторизации необходимо добавить домен этого приложения в Firebase Console -> Authentication -> Settings -> Authorized domains. Добавьте этот домен: ' + window.location.hostname);
+                 alert('Для работы авторизации необходимо добавить домен этого приложения в Firebase Console -> Authentication -> Settings -> Authorized domains. Добавьте этот домен: ' + window.location.hostname);
               } else {
-                alert('Ошибка при авторизации: ' + error.message);
+                 alert('Ошибка при авторизации: ' + error.message);
               }
             });
           }}
@@ -787,6 +819,7 @@ export default function App() {
           <ChatArea 
             onOpenLeftMenu={() => setIsLeftOpen(true)}
             isLeftOpen={isLeftOpen}
+            onOpenRightMenu={() => setIsRightOpen(true)}
             messages={currentMessages}
             isTyping={isTyping}
             typingLabel={typingLabel}
@@ -797,6 +830,7 @@ export default function App() {
             showTts={showTts}
             showRegenerate={showRegenerate}
             loadingAnimation={loadingAnimation}
+            isMobileDevice={isMobileDevice}
           />
         </div>
 
@@ -818,6 +852,7 @@ export default function App() {
           setTemperature={setTemperature}
           topP={topP}
           setTopP={setTopP}
+          isMobileDevice={isMobileDevice}
         />
       </div>
     </div>

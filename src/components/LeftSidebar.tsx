@@ -73,7 +73,7 @@ export default function LeftSidebar({ sessions, currentSessionId, onSelectSessio
                    transition-transform duration-300 ease-in-out overflow-hidden
                    ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}
       >
-        <div className="p-6 flex flex-col h-full w-[280px]">
+        <div className="p-6 pt-[calc(1.5rem+env(safe-area-inset-top,0px))] flex flex-col h-full w-[280px]">
           
           <div className="flex items-center justify-between mb-8">
             <div className="flex items-center gap-3">

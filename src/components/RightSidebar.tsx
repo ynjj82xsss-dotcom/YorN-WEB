@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { SlidersHorizontal, Info, X, User } from 'lucide-react';
+import { SlidersHorizontal, Info, X, User, Cpu, Smartphone, Laptop, CheckCircle2 } from 'lucide-react';
 import { User as FirebaseUser } from 'firebase/auth';
 
 interface RightSidebarProps {
@@ -21,6 +21,7 @@ interface RightSidebarProps {
   setTemperature: (val: number) => void;
   topP: number;
   setTopP: (val: number) => void;
+  isMobileDevice?: boolean;
 }
 
 export default function RightSidebar({ 
@@ -40,7 +41,8 @@ export default function RightSidebar({
   temperature,
   setTemperature,
   topP,
-  setTopP
+  setTopP,
+  isMobileDevice = false
 }: RightSidebarProps) {
   const [activeTab, setActiveTab] = useState<'profile' | 'settings'>('profile');
   return (
@@ -60,7 +62,7 @@ export default function RightSidebar({
                     transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]
                     ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}
       >
-        <div className="p-6 flex flex-col h-full">
+        <div className="p-6 pt-[calc(1.5rem+env(safe-area-inset-top,0px))] flex flex-col h-full">
           
           <div className="flex items-center justify-between mb-6">
             <div className="flex gap-4">
@@ -115,6 +117,41 @@ export default function RightSidebar({
                     <div className="flex items-center justify-between p-3 rounded-xl bg-[#121212] border border-[#222] shadow-inner cursor-pointer hover:border-[#333] transition-colors">
                       <span className="text-xs text-[#AAA]">YorN (Автоподбор)</span>
                       <Info size={14} className="text-[#444]" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Device Optimization Mode */}
+                <div className="space-y-4">
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-[#444] font-semibold">Оптимизация девайса</p>
+                  <div className="p-3.5 rounded-xl bg-[#090909] border border-[#161616] space-y-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-1.5 rounded-lg bg-[#141414] border border-[#222] text-[#AAA]">
+                        {isMobileDevice ? <Smartphone size={15} /> : <Laptop size={15} />}
+                      </div>
+                      <div>
+                        <p className="text-[11px] font-semibold text-[#DDD]">
+                          {isMobileDevice ? 'Мобильный (iOS/Android)' : 'Десктоп (ПК/Ноутбук)'}
+                        </p>
+                        <p className="text-[9px] text-[#555] uppercase tracking-wider">Определено автоматически</p>
+                      </div>
+                    </div>
+
+                    <div className="h-[1px] bg-[#161616]" />
+
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-1.5 text-[10px] text-[#888]">
+                        <CheckCircle2 size={11} className="text-purple-500 shrink-0" />
+                        <span>{isMobileDevice ? 'Снижен радиус Blur для GPU' : 'Максимальный рендер Blur'}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-[10px] text-[#888]">
+                        <CheckCircle2 size={11} className="text-purple-500 shrink-0" />
+                        <span>{isMobileDevice ? 'Подавлен авто-фокус клавиатуры' : 'Горячие клавиши (Enter)'}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-[10px] text-[#888]">
+                        <CheckCircle2 size={11} className="text-purple-500 shrink-0" />
+                        <span>{isMobileDevice ? 'Активен тактильный отклик' : 'Полноэкранный FPS режим'}</span>
+                      </div>
                     </div>
                   </div>
                 </div>
