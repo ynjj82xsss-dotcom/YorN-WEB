@@ -17,6 +17,7 @@ export type ChatSession = {
   title: string;
   date: string;
   messages: Message[];
+  isPinned?: boolean;
 };
 
 export interface AppNotification {

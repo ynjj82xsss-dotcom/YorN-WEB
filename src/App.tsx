@@ -11,6 +11,7 @@ import {
   loadUserSessions, 
   saveFirestoreSession, 
   updateFirestoreSessionTitle, 
+  updateFirestoreSessionPin,
   deleteFirestoreSession, 
   saveFirestoreMessage,
   subscribeToNotifications,
@@ -176,7 +177,7 @@ export default function App() {
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [isTyping, setIsTyping] = useState(false);
   const [typingLabel, setTypingLabel] = useState<string | undefined>(undefined);
-  const [mode, setMode] = useState<'speed' | 'tech' | 'plan'>('speed');
+  const [mode, setMode] = useState<'speed' | 'tech' | 'plan'>('tech');
   const [theme, setTheme] = useState(() => localStorage.getItem('yorn_theme') || 'dark');
   const [systemPrompt, setSystemPrompt] = useState(() => localStorage.getItem('yorn_prompt') || 'Вы — YorN AI, продвинутый, тактичный и лаконичный ИИ-ассистент, помогающий пользователю в любых задачах. Вы общаетесь вежливо, компетентно и отвечаете четко, по существу.');
   const [showTts, setShowTts] = useState(() => {
@@ -294,6 +295,18 @@ export default function App() {
         await updateFirestoreSessionTitle(id, newTitle);
       } catch (err) {
         console.error("Failed to rename session online:", err);
+      }
+    }
+  };
+
+  const handlePinSession = async (id: string, isPinned: boolean) => {
+    triggerHaptic(10);
+    setSessions(prev => prev.map(s => s.id === id ? { ...s, isPinned } : s));
+    if (user) {
+      try {
+        await updateFirestoreSessionPin(id, isPinned);
+      } catch (err) {
+        console.error("Failed to pin/unpin session online:", err);
       }
     }
   };
@@ -882,6 +895,71 @@ export default function App() {
                 Продолжить локально (Без облака)
               </button>
             </div>
+
+            {/* Divider */}
+            <div className="w-full h-[1px] bg-[#222] my-6" />
+
+            {/* Technology Stack & Hosting (Render) */}
+            <div className="flex flex-col items-center w-full select-none">
+              <span className="text-[9px] uppercase tracking-[0.2em] text-[#555] mb-3.5 font-bold">
+                Стек технологий & Хостинг
+              </span>
+              <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-3 opacity-60 hover:opacity-100 transition-opacity duration-300">
+                {/* React */}
+                <div className="flex items-center gap-1.5" title="React 18">
+                  <svg className="w-3.5 h-3.5 text-[#58C4DC] fill-none stroke-current animate-[spin_10s_linear_infinite]" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10" />
+                    <ellipse cx="12" cy="12" rx="4" ry="10" transform="rotate(30,12,12)" />
+                    <ellipse cx="12" cy="12" rx="4" ry="10" transform="rotate(150,12,12)" />
+                  </svg>
+                  <span className="text-[10px] text-[#A0A0A0] font-mono font-medium">React</span>
+                </div>
+
+                {/* Vite */}
+                <div className="flex items-center gap-1.5" title="Vite">
+                  <svg className="w-3.5 h-3.5 text-[#F6C61C]" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M19.78 3H4.22a.5.5 0 0 0-.41.78l8 15a.5.5 0 0 0 .84 0l8-15a.5.5 0 0 0-.41-.78z M12 18L5.78 6.33h12.44L12 18z" />
+                    <path d="M14.5 5.5l-2.5 5 1.5.5-3 5.5L12.5 11l-1.5-.5z" />
+                  </svg>
+                  <span className="text-[10px] text-[#A0A0A0] font-mono font-medium">Vite</span>
+                </div>
+
+                {/* Tailwind */}
+                <div className="flex items-center gap-1.5" title="Tailwind CSS">
+                  <svg className="w-3.5 h-3.5 text-[#38BDF8]" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 6.036c-2.43 0-4.05 1.216-4.86 3.649 1.215-1.216 2.632-1.621 4.251-1.216.924.23 1.584.896 2.315 1.634C14.896 11.233 16.03 12.38 18.252 12.38c2.43 0 4.05-1.216 4.86-3.649-1.215 1.216-2.632 1.621-4.25 1.216-.925-.23-1.585-.896-2.317-1.634C15.353 7.182 14.218 6.036 12 6.036zm-4.86 5.43c-2.43 0-4.05 1.216-4.86 3.649 1.215-1.216 2.632-1.621 4.25-1.216.925.23 1.585.896 2.317 1.634 1.189 1.129 2.324 2.275 4.546 2.275 2.43 0 4.05-1.216 4.86-3.649-1.215 1.216-2.632 1.621-4.25 1.216-.925-.23-1.585-.896-2.313-1.634-1.192-1.129-2.327-2.275-4.55-2.275z"/>
+                  </svg>
+                  <span className="text-[10px] text-[#A0A0A0] font-mono font-medium">Tailwind</span>
+                </div>
+
+                {/* Firebase */}
+                <div className="flex items-center gap-1.5" title="Firebase">
+                  <svg className="w-3.5 h-3.5 text-[#FFCA28]" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M3.877 17.52L5.8 5.75c.08-.47.46-.83.94-.87.49-.03.93.22 1.11.66l2.19 5.48L3.877 17.52zM12 11.02l2.36-4.52c.23-.44.7-.68 1.19-.58.49.1.86.49.91.99l.9 8.78L12 11.02zm8.123 6.5l-3.23-6.19 2.81-5.38a1.002 1.002 0 0 1 1.76.88l-1.34 10.69zM12 21.36l-8.31-4.75L12 10.99l8.31 5.62-8.31 4.75z" />
+                  </svg>
+                  <span className="text-[10px] text-[#A0A0A0] font-mono font-medium">Firebase</span>
+                </div>
+
+                {/* Gemini AI */}
+                <div className="flex items-center gap-1.5" title="Gemini AI">
+                  <svg className="w-3.5 h-3.5 text-[#A855F7] fill-none stroke-current" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                  </svg>
+                  <span className="text-[10px] text-[#A0A0A0] font-mono font-medium">Gemini</span>
+                </div>
+
+                {/* Render */}
+                <div className="flex items-center gap-1.5" title="Render (Cloud Hosting)">
+                  <svg className="w-3.5 h-3.5 text-[#46DE91] fill-none stroke-current" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="22" y1="12" x2="2" y2="12" />
+                    <path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
+                    <line x1="6" y1="16" x2="6.01" y2="16" strokeWidth="2" />
+                    <line x1="10" y1="16" x2="10.01" y2="16" strokeWidth="2" />
+                  </svg>
+                  <span className="text-[10px] text-[#A0A0A0] font-mono font-medium">Render</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -900,6 +978,7 @@ export default function App() {
           onSelectSession={handleSelectSession}
           onDeleteSession={handleDeleteSession}
           onRenameSession={handleRenameSession}
+          onPinSession={handlePinSession}
           onNewChat={handleNewChat}
           isOpen={isLeftOpen} 
           onClose={() => setIsLeftOpen(false)} 

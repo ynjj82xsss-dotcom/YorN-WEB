@@ -529,7 +529,7 @@ export default function ChatArea({
              </div>
            </div>
            <div className="text-center mt-4 text-[10px] text-[#444] font-medium tracking-wide">
-             YorN AI может допускать ошибки. Проверяйте информацию.
+             YorN AI может допускать ошибки. Проверяйте информацию. • <a href="https://t.me/myauradev" target="_blank" rel="noopener noreferrer" className="text-[#888] hover:text-[#58C4DC] font-semibold transition-colors inline-flex items-center gap-0.5">myauradev <span className="text-[8px] bg-white/5 text-[#58C4DC] px-1 rounded-sm font-mono tracking-wider font-bold">TG</span></a>
            </div>
         </div>
       </div>

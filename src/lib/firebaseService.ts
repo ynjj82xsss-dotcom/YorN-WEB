@@ -118,6 +118,7 @@ export async function loadUserSessions(userId: string): Promise<ChatSession[]> {
         id: sId,
         title: data.title,
         date: data.date,
+        isPinned: !!data.isPinned,
         messages: messages,
       });
     }
@@ -174,6 +175,26 @@ export async function updateFirestoreSessionTitle(sessionId: string, title: stri
   const path = `sessions/${sessionId}`;
   try {
     await updateDoc(doc(db, 'sessions', sessionId), { title });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, path);
+  }
+}
+
+// Update pinned status of a session
+export async function updateFirestoreSessionPin(sessionId: string, isPinned: boolean) {
+  const local = localStorage.getItem('yorn_local_sessions');
+  if (local) {
+    const sessions: ChatSession[] = JSON.parse(local);
+    const session = sessions.find(s => s.id === sessionId);
+    if (session) {
+      session.isPinned = isPinned;
+      localStorage.setItem('yorn_local_sessions', JSON.stringify(sessions));
+      return;
+    }
+  }
+  const path = `sessions/${sessionId}`;
+  try {
+    await updateDoc(doc(db, 'sessions', sessionId), { isPinned });
   } catch (error) {
     handleFirestoreError(error, OperationType.UPDATE, path);
   }

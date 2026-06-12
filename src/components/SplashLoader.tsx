@@ -68,7 +68,7 @@ export default function SplashLoader({ isLoading, onComplete, theme }: SplashLoa
               initial={{ scale: 0.92, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ duration: 0.8, ease: [0.215, 0.61, 0.355, 1] }}
-              className="relative w-24 h-24 mb-6 flex items-center justify-center"
+              className="relative w-24 h-24 flex items-center justify-center"
             >
               {/* Outer soft breathing circle ring */}
               <motion.div 
@@ -113,33 +113,6 @@ export default function SplashLoader({ isLoading, onComplete, theme }: SplashLoa
                 />
               </svg>
             </motion.div>
-
-            {/* Minimally polished text and subtle tracking */}
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.4 }}
-              className="space-y-1.5 mb-8"
-            >
-              <h1 className="text-xl font-medium text-white tracking-wider font-sans select-none">
-                YorN AI
-              </h1>
-              <p className="text-[10px] tracking-[0.25em] text-[#666] font-mono select-none uppercase">
-                Атмосферный интеллект
-              </p>
-            </motion.div>
-
-            {/* Sleek aesthetic visual-only progress bar */}
-            <div className="w-40 flex flex-col items-center">
-              <div className="w-full h-[1.5px] bg-white/5 rounded-full overflow-hidden relative">
-                <motion.div
-                  initial={{ width: "0%" }}
-                  animate={{ width: "100%" }}
-                  transition={{ duration: 1.8, ease: "easeInOut" }}
-                  className="h-full bg-gradient-to-r from-neutral-600 via-neutral-300 to-neutral-600 rounded-full"
-                />
-              </div>
-            </div>
           </div>
         </motion.div>
       )}

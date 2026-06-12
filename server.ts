@@ -43,16 +43,16 @@ app.post('/api/chat', async (req, res) => {
   if (mode === 'tech' || mode === 'plan') {
     // Top exact/reasoning and coding model priority
     modelsToTry = [
-      "Qwen/Qwen2.5-Coder-32B-Instruct",
       "Qwen/Qwen2.5-72B-Instruct",
+      "Qwen/Qwen2.5-Coder-32B-Instruct",
       "meta-llama/Llama-3.1-8B-Instruct"
     ];
   } else {
-    // Speed priority
+    // Speed priority (using Qwen 2.5 Coder 32B first since it's highly optimized, extremely smart, and fast on HF API, avoiding Llama 8B queuing)
     modelsToTry = [
-      "meta-llama/Llama-3.1-8B-Instruct",
       "Qwen/Qwen2.5-Coder-32B-Instruct",
-      "Qwen/Qwen2.5-72B-Instruct"
+      "Qwen/Qwen2.5-72B-Instruct",
+      "meta-llama/Llama-3.1-8B-Instruct"
     ];
   }
 
@@ -68,7 +68,7 @@ app.post('/api/chat', async (req, res) => {
       const response = await hf.chatCompletion({
         model: model,
         messages: formattedMessages,
-        max_tokens: 512,
+        max_tokens: 4096,
         temperature: tempVal,
         top_p: topPVal,
       });
