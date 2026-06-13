@@ -44,6 +44,46 @@
         }
       },
       "required": ["role", "content", "timestamp"]
+    },
+    "skill": {
+      "title": "Custom Skill",
+      "description": "A custom AI skill or system persona created by the user",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "The UID of the user who owns this custom skill"
+        },
+        "name": {
+          "type": "string",
+          "description": "The friendly display name of the skill"
+        },
+        "trigger": {
+          "type": "string",
+          "description": "The trigger slash command"
+        },
+        "description": {
+          "type": "string",
+          "description": "Short description of what the skill does"
+        },
+        "instructions": {
+          "type": "string",
+          "description": "System guidelines for the model"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO timestamp of creation"
+        },
+        "isPublic": {
+          "type": "boolean",
+          "description": "Whether this skill is shared in the cloud hub with others"
+        },
+        "authorEmail": {
+          "type": "string",
+          "description": "The email address of the skill's author"
+        }
+      },
+      "required": ["userId", "name", "trigger", "description", "instructions", "createdAt", "isPublic", "authorEmail"]
     }
   },
   "firestore": {
@@ -54,6 +94,10 @@
     "/sessions/{sessionId}/messages/{messageId}": {
       "schema": "message",
       "description": "Stores individual messages belonging to a chat session"
+    },
+    "/skills/{skillId}": {
+      "schema": "skill",
+      "description": "Stores custom skill entities created by users"
     }
   }
 }

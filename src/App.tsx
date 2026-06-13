@@ -15,17 +15,117 @@ import {
   deleteFirestoreSession, 
   saveFirestoreMessage,
   subscribeToNotifications,
-  publishNotification
+  publishNotification,
+  loadUserSkills,
+  saveUserSkill,
+  deleteUserSkill
 } from './lib/firebaseService';
 import Background from './components/Background';
 import LeftSidebar from './components/LeftSidebar';
 import RightSidebar from './components/RightSidebar';
 import ChatArea from './components/ChatArea';
 import NotificationsPanel from './components/NotificationsPanel';
-import { ChatSession, Message, AppNotification } from './types';
+import SkillsHubModal from './components/SkillsHubModal';
+import { ChatSession, Message, AppNotification, Skill, IntegrationConfig } from './types';
 import SplashLoader from './components/SplashLoader';
 import { motion, AnimatePresence } from 'motion/react';
 import { Bell, X } from 'lucide-react';
+
+const DEFAULT_SKILLS: Skill[] = [
+  {
+    id: 'translate',
+    name: 'Переводчик',
+    trigger: 'translate',
+    description: 'Переводит любой текст на русский, английский или другие языки.',
+    instructions: 'Ты — профессиональный, сверхточный и быстрый переводчик. Переведи текст пользователя на русский язык (если исходный текст на английском или другом языке) или на английский язык (если исходный на русском), сохраняя форматирование, структуру и оригинальный эмоциональный окрас. Отдавай только переведенный текст без лишних слов.',
+    createdAt: '2026-06-13T00:00:00.000Z',
+    isSystem: true
+  },
+  {
+    id: 'summarize',
+    name: 'Саммаризатор',
+    trigger: 'summarize',
+    description: 'Делает структурированную выжимку из больших материалов.',
+    instructions: 'Ты — эксперт по анализу информации. Напиши краткую, структурированную, емкую выжимку (summary) предоставленного текста или диалога. Используй списки, выдели суть, важные тезисы, ключевые выводы и необходимые действия (action items) на русском языке.',
+    createdAt: '2026-06-13T00:00:00.000Z',
+    isSystem: true
+  },
+  {
+    id: 'code',
+    name: 'Код-Архитектор',
+    trigger: 'code',
+    description: 'Пишет чистый, оптимизированный и безопасный код.',
+    instructions: 'Ты — элитный программист и системный архитектор. Напиши чистый, чрезвычайно производительный, масштабируемый код в соответствии с профессиональными практиками и стандартами. Сопровождай код краткими емкими комментариями на русском языке, избегай избыточных рассуждений.',
+    createdAt: '2026-06-13T00:00:00.000Z',
+    isSystem: true
+  },
+  {
+    id: 'explain',
+    name: 'Разъяснитель',
+    trigger: 'explain',
+    description: 'Объясняет сложнейшие понятия простыми и доступными словами.',
+    instructions: 'Ты — превосходный ментор и популяризатор науки. Разложи сложный вопрос, технологию, формулу или абстрактный концепт по полочкам самым доступным, простым и интересным языком. Используй живые аналогии, структурированное оформление и шаг за шагом веди к глубокому интуитивному пониманию темы.',
+    createdAt: '2026-06-13T00:00:00.000Z',
+    isSystem: true
+  },
+  {
+    id: 'funny',
+    name: 'Острослов',
+    trigger: 'funny',
+    description: 'Отвечает с юмором, тонкой иронией или сарказмом.',
+    instructions: 'Ты — невероятно саркастичный, остроумный и ироничный собеседник с острым умом. Отвечай на запросы пользователя точно и по факту, но щедро приправляй свои реплики тонким юмором, здоровым сарказмом и иронией. Общение должно быть живым, как в хорошем стендапе.',
+    createdAt: '2026-06-13T00:00:00.000Z',
+    isSystem: true
+  }
+];
+
+const INITIAL_INTEGRATIONS: IntegrationConfig[] = [
+  {
+    id: 'search',
+    name: 'Веб-поиск (DuckDuckGo)',
+    description: 'Интегрирует поиск по интернету прямо в ваши текстовые запросы для актуальной информации.',
+    isEnabled: false,
+    value: '',
+    placeholder: 'Необязательный поисковый запрос (или оставите пустым)',
+    label: 'Запрос по умолчанию (необязательно)'
+  },
+  {
+    id: 'weather',
+    name: 'Погода (OpenWeather)',
+    description: 'Предоставляет текущую погодную информацию для выбранных городов.',
+    isEnabled: false,
+    value: 'Москва',
+    placeholder: 'Например: Москва',
+    label: 'Город по умолчанию'
+  },
+  {
+    id: 'crypto',
+    name: 'Криптовалюты (CoinGecko)',
+    description: 'Запрашивает актуальный курс криптовалют к доллару США.',
+    isEnabled: false,
+    value: 'bitcoin',
+    placeholder: 'Например: bitcoin, ethereum, solana',
+    label: 'ID монеты (строчные буквы)'
+  },
+  {
+    id: 'github',
+    name: 'GitHub API Репозитории',
+    description: 'Считывает открытые данные публичных репозиториев (звезды, форки, открытые ишью).',
+    isEnabled: false,
+    value: 'facebook/react',
+    placeholder: 'owner/repository (например, facebook/react)',
+    label: 'Репозиторий'
+  },
+  {
+    id: 'webhook',
+    name: 'Пользовательский Webhook',
+    description: 'Отправляет POST-уведомление или GET-запрос на ваш автоматизационный URL (Zapier, Make, custom API).',
+    isEnabled: false,
+    value: '',
+    placeholder: 'https://api.example.com/webhook',
+    label: 'URL вебхука'
+  }
+];
 
 export default function App() {
   const [isLeftOpen, setIsLeftOpen] = useState(() => {
@@ -154,6 +254,54 @@ export default function App() {
   }, []);
 
   const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [customSkills, setCustomSkills] = useState<Skill[]>([]);
+  const [isSkillsHubOpen, setIsSkillsHubOpen] = useState(false);
+  
+  const [integrations, setIntegrations] = useState<IntegrationConfig[]>(() => {
+    try {
+      const saved = localStorage.getItem('yorn_integrations');
+      return saved ? JSON.parse(saved) : INITIAL_INTEGRATIONS;
+    } catch {
+      return INITIAL_INTEGRATIONS;
+    }
+  });
+
+  const handleUpdateIntegrations = (newIntegrations: IntegrationConfig[]) => {
+    setIntegrations(newIntegrations);
+    localStorage.setItem('yorn_integrations', JSON.stringify(newIntegrations));
+    triggerHaptic(15);
+  };
+  
+  useEffect(() => {
+    const uid = user ? user.uid : 'guest-local-user';
+    loadUserSkills(uid)
+      .then(loadedSkills => {
+        setCustomSkills(loadedSkills);
+      })
+      .catch(err => {
+        console.error("Failed to load custom skills:", err);
+      });
+  }, [user]);
+
+  const handleSaveSkill = async (newSkill: Skill) => {
+    const uid = user ? user.uid : 'guest-local-user';
+    await saveUserSkill(uid, newSkill);
+    setCustomSkills(prev => {
+      const idx = prev.findIndex(s => s.id === newSkill.id);
+      if (idx >= 0) {
+        const copy = [...prev];
+        copy[idx] = newSkill;
+        return copy;
+      }
+      return [newSkill, ...prev];
+    });
+  };
+
+  const handleDeleteSkill = async (skillId: string) => {
+    const uid = user ? user.uid : 'guest-local-user';
+    await deleteUserSkill(uid, skillId);
+    setCustomSkills(prev => prev.filter(s => s.id !== skillId));
+  };
   
   useEffect(() => {
     if (user) {
@@ -177,7 +325,7 @@ export default function App() {
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [isTyping, setIsTyping] = useState(false);
   const [typingLabel, setTypingLabel] = useState<string | undefined>(undefined);
-  const [mode, setMode] = useState<'speed' | 'tech' | 'plan'>('tech');
+  const [mode, setMode] = useState<'mini' | 'base' | 'max' | 'auto'>('auto');
   const [theme, setTheme] = useState(() => localStorage.getItem('yorn_theme') || 'dark');
   const [systemPrompt, setSystemPrompt] = useState(() => localStorage.getItem('yorn_prompt') || 'Вы — YorN AI, продвинутый, тактичный и лаконичный ИИ-ассистент, помогающий пользователю в любых задачах. Вы общаетесь вежливо, компетентно и отвечаете четко, по существу.');
   const [showTts, setShowTts] = useState(() => {
@@ -328,9 +476,24 @@ export default function App() {
   };
 
   const handleSendMessage = async (content: string, rawAttachments?: { name: string; content: string; size: string }[]) => {
+    if (content.trim().startsWith('/skill')) {
+      setIsSkillsHubOpen(true);
+      return;
+    }
+
     if (!user) {
       alert("Пожалуйста, войдите в систему, чтобы отправлять сообщения.");
       return;
+    }
+
+    let activeSkill: Skill | undefined = undefined;
+    const commandMatch = content.trim().match(/^\/([a-zA-Z0-9_]+)/);
+    if (commandMatch) {
+      const triggerWord = commandMatch[1].toLowerCase();
+      const foundSkill = [...DEFAULT_SKILLS, ...customSkills].find(s => s.trigger === triggerWord);
+      if (foundSkill) {
+        activeSkill = foundSkill;
+      }
     }
 
     const newUserMsg: Message = {
@@ -383,7 +546,7 @@ export default function App() {
     const controller = new AbortController();
     abortControllerRef.current = controller;
 
-    if (mode === 'plan') {
+    if ((mode as string) === 'plan') {
       try {
         setTypingLabel("создание плана...");
         
@@ -413,9 +576,10 @@ export default function App() {
           body: JSON.stringify({
             messages: messagesForPlanning,
             mode: 'tech',
-            systemPrompt: systemPrompt,
+            systemPrompt: systemPrompt + (activeSkill ? `\n\n[РЕЖИМ НАВЫКА "${activeSkill.name}"]: ${activeSkill.instructions}` : ''),
             temperature: temperature,
-            topP: topP
+            topP: topP,
+            integrations: integrations
           })
         });
 
@@ -464,9 +628,10 @@ export default function App() {
           body: JSON.stringify({
             messages: messagesForExecution,
             mode: 'tech',
-            systemPrompt: systemPrompt,
+            systemPrompt: systemPrompt + (activeSkill ? `\n\n[РЕЖИМ НАВЫКА "${activeSkill.name}"]: ${activeSkill.instructions}` : ''),
             temperature: temperature,
-            topP: topP
+            topP: topP,
+            integrations: integrations
           })
         });
 
@@ -546,9 +711,10 @@ export default function App() {
         body: JSON.stringify({
           messages: messagesToSend,
           mode: mode,
-          systemPrompt: systemPrompt,
+          systemPrompt: systemPrompt + (activeSkill ? `\n\n[РЕЖИМ НАВЫКА "${activeSkill.name}"]: ${activeSkill.instructions}` : ''),
           temperature: temperature,
-          topP: topP
+          topP: topP,
+          integrations: integrations
         })
       });
 
@@ -624,6 +790,19 @@ export default function App() {
     const messagesToKeep = session.messages.slice(0, lastUserMessageIdx + 1);
     const messagesToDelete = session.messages.slice(lastUserMessageIdx + 1);
 
+    let activeRegenSkill: Skill | undefined = undefined;
+    const lastUserMsg = messagesToKeep[messagesToKeep.length - 1];
+    if (lastUserMsg && lastUserMsg.content) {
+      const commandMatch = lastUserMsg.content.trim().match(/^\/([a-zA-Z0-9_]+)/);
+      if (commandMatch) {
+        const triggerWord = commandMatch[1].toLowerCase();
+        const foundSkill = [...DEFAULT_SKILLS, ...customSkills].find(s => s.trigger === triggerWord);
+        if (foundSkill) {
+          activeRegenSkill = foundSkill;
+        }
+      }
+    }
+
     // Delete discarded elements in Firestore first
     try {
       for (const m of messagesToDelete) {
@@ -644,7 +823,7 @@ export default function App() {
     const controller = new AbortController();
     abortControllerRef.current = controller;
 
-    if (mode === 'plan') {
+    if ((mode as string) === 'plan') {
       try {
         setTypingLabel("создание плана...");
         const lastUserMsg = messagesToKeep[messagesToKeep.length - 1];
@@ -668,7 +847,7 @@ export default function App() {
           body: JSON.stringify({
             messages: messagesForPlanning,
             mode: 'tech',
-            systemPrompt: systemPrompt,
+            systemPrompt: systemPrompt + (activeRegenSkill ? `\n\n[РЕЖИМ НАВЫКА "${activeRegenSkill.name}"]: ${activeRegenSkill.instructions}` : ''),
             temperature: temperature,
             topP: topP
           })
@@ -719,7 +898,7 @@ export default function App() {
           body: JSON.stringify({
             messages: messagesForExecution,
             mode: 'tech',
-            systemPrompt: systemPrompt,
+            systemPrompt: systemPrompt + (activeRegenSkill ? `\n\n[РЕЖИМ НАВЫКА "${activeRegenSkill.name}"]: ${activeRegenSkill.instructions}` : ''),
             temperature: temperature,
             topP: topP
           })
@@ -773,7 +952,7 @@ export default function App() {
         body: JSON.stringify({
           messages: messagesToKeep.map(m => ({ role: m.role, content: m.content })),
           mode: mode,
-          systemPrompt: systemPrompt,
+          systemPrompt: systemPrompt + (activeRegenSkill ? `\n\n[РЕЖИМ НАВЫКА "${activeRegenSkill.name}"]: ${activeRegenSkill.instructions}` : ''),
           temperature: temperature,
           topP: topP
         })
@@ -1021,6 +1200,9 @@ export default function App() {
             isMobileDevice={isMobileDevice}
             unreadNotificationsCount={notifications.filter(n => !readNotificationIds.includes(n.id)).length}
             onOpenNotifications={() => setIsNotifOpen(true)}
+            customSkills={customSkills}
+            systemSkills={DEFAULT_SKILLS}
+            onOpenSkillsHub={() => setIsSkillsHubOpen(true)}
           />
         </div>
 
@@ -1056,6 +1238,18 @@ export default function App() {
           onPublishBroadcast={handlePublishBroadcast}
           isMobileDevice={isMobileDevice}
           currentUserEmail={user?.email || null}
+        />
+
+        <SkillsHubModal
+          isOpen={isSkillsHubOpen}
+          onClose={() => setIsSkillsHubOpen(false)}
+          userId={user ? user.uid : 'guest-local-user'}
+          customSkills={customSkills}
+          systemSkills={DEFAULT_SKILLS}
+          onSaveSkill={handleSaveSkill}
+          onDeleteSkill={handleDeleteSkill}
+          integrations={integrations}
+          onUpdateIntegrations={handleUpdateIntegrations}
         />
 
         {/* Real-time Toast Notification Alert */}

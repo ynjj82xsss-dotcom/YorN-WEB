@@ -14,7 +14,7 @@ import {
   limit
 } from 'firebase/firestore';
 import { db, auth } from './firebase';
-import { ChatSession, Message, AppNotification } from '../types';
+import { ChatSession, Message, AppNotification, Skill } from '../types';
 
 export enum OperationType {
   CREATE = 'create',
@@ -387,5 +387,123 @@ export async function publishNotification(
   localStorage.setItem(localNotificationKey, JSON.stringify(updatedLocal));
 
   return notificationId;
+}
+
+// Load custom skills
+export async function loadUserSkills(userId: string): Promise<Skill[]> {
+  const path = 'skills';
+  
+  // If registered user, try to load all skills to build a unified Cloud database
+  if (userId !== 'guest-local-user') {
+    try {
+      const querySnapshot = await getDocs(collection(db, path));
+      const allSkills = querySnapshot.docs.map(docSnap => {
+        const data = docSnap.data();
+        return {
+          id: docSnap.id,
+          userId: data.userId,
+          name: data.name,
+          trigger: data.trigger,
+          description: data.description,
+          instructions: data.instructions,
+          createdAt: data.createdAt || new Date().toISOString(),
+          isPublic: data.isPublic !== undefined ? !!data.isPublic : true,
+          authorEmail: data.authorEmail || 'Анонимный разработчик'
+        } as Skill;
+      });
+      // Sort by creation time descending
+      allSkills.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      return allSkills;
+    } catch (error) {
+      console.warn("loadUserSkills from Firestore failed, fallback to local backup:", error);
+    }
+  }
+
+  // Fallback to local storage if Firestore fails or user is guest-local-user
+  const localKey = userId === 'guest-local-user' ? 'yorn_local_skills' : `yorn_skills_${userId}`;
+  const local = localStorage.getItem(localKey);
+  return local ? JSON.parse(local) : [];
+}
+
+// Save custom skill
+export async function saveUserSkill(userId: string, skill: Skill) {
+  const isPublic = skill.isPublic !== undefined ? !!skill.isPublic : true;
+  const authorEmail = skill.authorEmail || auth.currentUser?.email || 'Аноним';
+
+  if (userId === 'guest-local-user') {
+    const local = localStorage.getItem('yorn_local_skills');
+    const skills: Skill[] = local ? JSON.parse(local) : [];
+    const idx = skills.findIndex(s => s.id === skill.id);
+    const fullSkill = { 
+      ...skill, 
+      userId,
+      isPublic,
+      authorEmail: 'Локальный гость'
+    };
+    if (idx >= 0) {
+      skills[idx] = fullSkill;
+    } else {
+      skills.push(fullSkill);
+    }
+    localStorage.setItem('yorn_local_skills', JSON.stringify(skills));
+    return;
+  }
+  const path = `skills/${skill.id}`;
+  try {
+    const payload = {
+      userId,
+      name: skill.name,
+      trigger: skill.trigger,
+      description: skill.description,
+      instructions: skill.instructions,
+      createdAt: skill.createdAt,
+      isPublic,
+      authorEmail,
+    };
+    await setDoc(doc(db, 'skills', skill.id), payload);
+    
+    // Save to our user-specific local cache for offline stability
+    const cached = localStorage.getItem(`yorn_skills_${userId}`);
+    const cacheList: Skill[] = cached ? JSON.parse(cached) : [];
+    const idx = cacheList.findIndex(c => c.id === skill.id);
+    const resolvedSkill = { ...skill, isPublic, authorEmail, userId };
+    if (idx >= 0) cacheList[idx] = resolvedSkill;
+    else cacheList.push(resolvedSkill);
+    localStorage.setItem(`yorn_skills_${userId}`, JSON.stringify(cacheList));
+  } catch (error) {
+    console.error("saveUserSkill failed:", error);
+    // Write to local cache so user doesn't lose active edits
+    const cached = localStorage.getItem(`yorn_skills_${userId}`);
+    const cacheList: Skill[] = cached ? JSON.parse(cached) : [];
+    const idx = cacheList.findIndex(c => c.id === skill.id);
+    const resolvedSkill = { ...skill, isPublic, authorEmail, userId };
+    if (idx >= 0) cacheList[idx] = resolvedSkill;
+    else cacheList.push(resolvedSkill);
+    localStorage.setItem(`yorn_skills_${userId}`, JSON.stringify(cacheList));
+  }
+}
+
+// Delete custom skill
+export async function deleteUserSkill(userId: string, skillId: string) {
+  if (userId === 'guest-local-user') {
+    const local = localStorage.getItem('yorn_local_skills');
+    if (local) {
+      let skills: Skill[] = JSON.parse(local);
+      skills = skills.filter(s => s.id !== skillId);
+      localStorage.setItem('yorn_local_skills', JSON.stringify(skills));
+    }
+    return;
+  }
+  try {
+    await deleteDoc(doc(db, 'skills', skillId));
+    const cached = localStorage.getItem(`yorn_skills_${userId}`);
+    if (cached) {
+      let cacheList: Skill[] = JSON.parse(cached);
+      cacheList = cacheList.filter(c => c.id !== skillId);
+      localStorage.setItem(`yorn_skills_${userId}`, JSON.stringify(cacheList));
+    }
+  } catch (error) {
+    console.error("deleteUserSkill failed:", error);
+  }
 }
 

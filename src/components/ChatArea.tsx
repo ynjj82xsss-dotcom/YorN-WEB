@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { Menu, Settings2, ArrowUp, Mic, MicOff, Paperclip, FileText, X, SlidersHorizontal, Square, Bell } from 'lucide-react';
+import { Menu, Settings2, ArrowUp, Mic, MicOff, Paperclip, FileText, X, SlidersHorizontal, Square, Bell, Sparkles, Terminal, Code, HelpCircle, Globe, Lightbulb, MessageSquare, Languages, Bot, Cpu, Compass } from 'lucide-react';
 import ChatMessage, { TypingIndicator } from './ChatMessage';
-import { Message } from '../types';
+import { Message, Skill } from '../types';
 
 declare global {
   interface Window {
@@ -10,6 +10,43 @@ declare global {
     webkitSpeechRecognition: any;
   }
 }
+
+const getSkillIcon = (trigger: string, className = "w-4.5 h-4.5 text-neutral-400") => {
+  const t = trigger.toLowerCase();
+  
+  if (t === 'translate' || t.includes('lang')) {
+    return <Languages className={className} />;
+  }
+  if (t === 'summarize' || t.includes('sum') || t.includes('note')) {
+    return <FileText className={className} />;
+  }
+  if (t === 'code' || t.includes('dev') || t.includes('program')) {
+    return <Code className={className} />;
+  }
+  if (t === 'explain' || t.includes('help') || t.includes('why')) {
+    return <HelpCircle className={className} />;
+  }
+  if (t === 'skill' || t.includes('tool') || t.includes('option')) {
+    return <SlidersHorizontal className={className} />;
+  }
+  if (t.includes('chat') || t.includes('talk') || t.includes('speak')) {
+    return <MessageSquare className={className} />;
+  }
+  if (t.includes('funny') || t.includes('joke') || t.includes('creative') || t.includes('humor') || t.includes('roast')) {
+    return <Sparkles className={className} />;
+  }
+  if (t.includes('idea') || t.includes('brain') || t.includes('prompt')) {
+    return <Lightbulb className={className} />;
+  }
+  
+  // Choose nice default icons for other custom inputs
+  const charCodeSum = t.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  const index = charCodeSum % 4;
+  if (index === 0) return <Terminal className={className} />;
+  if (index === 1) return <Cpu className={className} />;
+  if (index === 2) return <Bot className={className} />;
+  return <Compass className={className} />;
+};
 
 interface ChatAreaProps {
   onOpenLeftMenu: () => void;
@@ -21,14 +58,17 @@ interface ChatAreaProps {
   onSendMessage: (content: string, rawAttachments?: { name: string; content: string; size: string }[]) => void;
   onRegenerate: () => void;
   onStopGeneration?: () => void;
-  mode: 'speed' | 'tech' | 'plan';
-  onModeChange: (mode: 'speed' | 'tech' | 'plan') => void;
+  mode: 'mini' | 'base' | 'max' | 'auto';
+  onModeChange: (mode: 'mini' | 'base' | 'max' | 'auto') => void;
   showTts: boolean;
   showRegenerate: boolean;
   loadingAnimation: string;
   isMobileDevice?: boolean;
   unreadNotificationsCount?: number;
   onOpenNotifications?: () => void;
+  customSkills?: Skill[];
+  systemSkills?: Skill[];
+  onOpenSkillsHub?: () => void;
 }
 
 export default function ChatArea({ 
@@ -48,7 +88,10 @@ export default function ChatArea({
   loadingAnimation,
   isMobileDevice = false,
   unreadNotificationsCount = 0,
-  onOpenNotifications
+  onOpenNotifications,
+  customSkills = [],
+  systemSkills = [],
+  onOpenSkillsHub
 }: ChatAreaProps) {
   const [inputValue, setInputValue] = useState('');
   const [isRecording, setIsRecording] = useState(false);
@@ -56,11 +99,72 @@ export default function ChatArea({
   const [showModeSelect, setShowModeSelect] = useState(false);
   const [attachments, setAttachments] = useState<{ name: string; content: string; size: string }[]>([]);
   const [isDragging, setIsDragging] = useState(false);
+
+  // Skills Hub and Slash Commands Autocomplete states
+  const [showSkillsDropdown, setShowSkillsDropdown] = useState(false);
+  const [skillsSearch, setSkillsSearch] = useState('');
+  const [selectedIndex, setSelectedIndex] = useState(0);
   
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Merge system default skills and user custom skills
+  const allAvailableSkills: Skill[] = [
+    ...systemSkills,
+    ...customSkills,
+    {
+      id: 'skill-hub-trigger',
+      name: '⚙️ Создать или Обучить Навык',
+      trigger: 'skill',
+      description: 'Открыть Центр Навыков, чтобы добавить свой навык или обучить его с помощью AI.',
+      instructions: '',
+      createdAt: '',
+      isSystem: true
+    }
+  ];
+
+  // Filter skills based on user input (e.g. typing "/tr" matches "/translate")
+  const filteredSkills = allAvailableSkills.filter(s => 
+    s.trigger.toLowerCase().includes(skillsSearch) ||
+    s.name.toLowerCase().includes(skillsSearch) ||
+    s.description.toLowerCase().includes(skillsSearch)
+  );
+
+  // Monitor text entry to toggle the autocompletion matching dropdown
+  useEffect(() => {
+    if (inputValue.startsWith('/')) {
+      const match = inputValue.match(/^\/([a-zA-Z0-9_]*)$/);
+      if (match) {
+        setShowSkillsDropdown(true);
+        setSkillsSearch(match[1].toLowerCase());
+      } else {
+        setShowSkillsDropdown(false);
+      }
+    } else {
+      setShowSkillsDropdown(false);
+    }
+  }, [inputValue]);
+
+  const selectSkill = (skill: Skill) => {
+    if (skill.trigger === 'skill') {
+      if (onOpenSkillsHub) onOpenSkillsHub();
+      setInputValue('');
+    } else {
+      setInputValue(`/${skill.trigger} `);
+    }
+    setShowSkillsDropdown(false);
+    setSelectedIndex(0);
+    setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+        // Recalculate height
+        textareaRef.current.style.height = 'auto';
+        textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 150)}px`;
+      }
+    }, 50);
+  };
 
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -126,6 +230,29 @@ export default function ChatArea({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (showSkillsDropdown && filteredSkills.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedIndex(prev => (prev + 1) % filteredSkills.length);
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedIndex(prev => (prev - 1 + filteredSkills.length) % filteredSkills.length);
+        return;
+      }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault();
+        selectSkill(filteredSkills[selectedIndex]);
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setShowSkillsDropdown(false);
+        return;
+      }
+    }
+
     // On mobile devices, let the digital keyboard behave naturally (create newline) 
     // instead of submitting a half-typed message instantly.
     if (isMobileDevice) {
@@ -372,6 +499,72 @@ export default function ChatArea({
       {/* Input Area */}
       <div className="p-4 md:p-8 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] md:pb-6 bg-gradient-to-t from-[#050505] via-[#050505]/90 to-transparent">
         <div className="max-w-3xl mx-auto relative group">
+          {/* Skills Dropdown Autocomplete Overlay */}
+          {showSkillsDropdown && filteredSkills.length > 0 && (
+            <div className="absolute bottom-[calc(100%+12px)] left-0 right-0 z-[100] max-h-[300px] overflow-y-auto bg-[#080808]/95 border border-purple-500/20 rounded-xl shadow-[0_-15px_30px_rgba(0,0,0,0.8)] backdrop-blur-md divide-y divide-neutral-900 scrollbar-hide">
+              <div className="p-2.5 px-4 text-[9px] text-neutral-400 font-mono tracking-wider flex items-center justify-between pointer-events-auto bg-[#040404]/95 border-b border-[#121212] select-none text-neutral-500">
+                <div className="flex items-center gap-2">
+                  <span className="px-1 py-0.5 rounded bg-neutral-900 text-neutral-400 border border-neutral-800 font-mono text-[8px] font-bold">↑↓</span>
+                  <span>Навигация</span>
+                  <span className="px-1 py-0.5 rounded bg-neutral-900 text-neutral-400 border border-neutral-800 font-mono text-[8px] font-bold ml-1">Enter</span>
+                  <span>Выбор</span>
+                </div>
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (onOpenSkillsHub) onOpenSkillsHub();
+                    setShowSkillsDropdown(false);
+                  }}
+                  className="text-purple-400 hover:text-purple-300 transition-colors font-medium hover:underline cursor-pointer flex items-center gap-1 text-[9px]"
+                >
+                  <SlidersHorizontal size={10} />
+                  <span>Открыть Центр Навыков (/skill)</span>
+                </button>
+              </div>
+              {filteredSkills.map((skill, index) => (
+                <div
+                  key={skill.id}
+                  onClick={() => selectSkill(skill)}
+                  className={`p-2.5 px-4 flex items-center justify-between gap-3 cursor-pointer transition-all border-l-2 ${
+                    index === selectedIndex 
+                      ? 'bg-purple-500/10 text-white border-purple-500' 
+                      : 'text-neutral-400 border-transparent hover:bg-neutral-900/60 hover:text-neutral-200'
+                  }`}
+                >
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-all ${
+                      index === selectedIndex 
+                        ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' 
+                        : 'bg-neutral-950 text-neutral-500 border border-neutral-800/40'
+                    }`}>
+                      {getSkillIcon(skill.trigger)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold text-neutral-200">{skill.name}</span>
+                        {skill.isSystem ? (
+                          <span className="text-[8px] px-1.5 py-0.5 rounded-md bg-neutral-900 text-neutral-500 font-mono font-semibold tracking-wider">SYSTEM</span>
+                        ) : (
+                          <span className="text-[8px] px-1.5 py-0.5 rounded-md bg-purple-950/40 text-purple-400 border border-purple-500/15 font-mono font-semibold tracking-wider">CUSTOM</span>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-neutral-500 mt-0.5 truncate leading-relaxed">
+                        {skill.description}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className={`px-2.5 py-1 rounded-md font-mono text-[10px] font-bold tracking-tight shrink-0 transition-all border ${
+                    index === selectedIndex
+                      ? 'bg-purple-500/20 text-purple-300 border-purple-500/30 shadow-[0_0_10px_rgba(168,85,247,0.15)]'
+                      : 'bg-neutral-950 text-neutral-500 border-neutral-800/65'
+                  }`}>
+                    /{skill.trigger}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
            <div className="absolute -inset-0.5 bg-[#121212]/30 rounded-2xl blur opacity-0 group-hover:opacity-100 transition duration-1000"></div>
            <div className={`relative rounded-2xl transition-all shadow-2xl flex flex-col ${
              isTyping && loadingAnimation === 'border' 
@@ -444,47 +637,76 @@ export default function ChatArea({
                  <div className="relative">
                    <button 
                      onClick={() => setShowModeSelect(!showModeSelect)}
-                     className={`p-1 transition-colors ${showModeSelect ? 'text-white' : 'text-[#444] hover:text-[#777]'}`}
-                     title="Режим (Speed/Tech/Plan)"
-                   >
-                     <Settings2 size={16} />
-                   </button>
+                     className={`flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-mono font-medium rounded-full border transition-all ${showModeSelect ? 'bg-[#222]/80 border-neutral-700 text-white' : 'bg-[#121212]/50 border-[#222] text-[#888] hover:text-[#CCC] hover:border-[#333]'}`}
+                     title="Выбор ИИ Модели"> <Settings2 size={11} className={showModeSelect ? "text-purple-400" : "text-[#555]"} /> <span>{mode === "mini" ? "YorN mini" : mode === "base" ? "YorN base" : mode === "max" ? "Yorn MAX" : "auto"}</span> </button>
                    
                    {showModeSelect && (
-                     <>
-                       <div className="fixed inset-0 z-[100]" onClick={() => setShowModeSelect(false)} />
-                       <motion.div 
-                         initial={{ opacity: 0, y: 5 }}
-                         animate={{ opacity: 1, y: 0 }}
-                         className="absolute bottom-full left-0 mb-4 p-1.5 bg-[#111] border border-[#222] rounded-xl shadow-[0_4px_30px_rgba(0,0,0,0.8)] flex flex-col gap-1 z-[101] min-w-[120px]"
-                       >
-                         <button 
-                           onClick={() => { onModeChange('speed'); setShowModeSelect(false); }}
-                           className={`text-left px-3 py-2 text-xs rounded-lg transition-colors flex items-center justify-between ${mode === 'speed' ? 'bg-[#222] text-white' : 'text-[#888] hover:bg-[#1A1A1A] hover:text-[#DDD]'}`}
-                         >
-                           <span>Speed</span>
-                           {mode === 'speed' ? <div className="w-1.5 h-1.5 rounded-full bg-blue-500" /> : <div className="w-1.5 h-1.5 rounded-full bg-transparent" />}
-                         </button>
-                         <button 
-                           onClick={() => { onModeChange('tech'); setShowModeSelect(false); }}
-                           className={`text-left px-3 py-2 text-xs rounded-lg transition-colors flex items-center justify-between ${mode === 'tech' ? 'bg-[#222] text-white' : 'text-[#888] hover:bg-[#1A1A1A] hover:text-[#DDD]'}`}
-                         >
-                           <span>Tech</span>
-                           {mode === 'tech' ? <div className="w-1.5 h-1.5 rounded-full bg-purple-500" /> : <div className="w-1.5 h-1.5 rounded-full bg-transparent" />}
-                          </button>
+                      <>
+                        <div className="fixed inset-0 z-[100]" onClick={() => setShowModeSelect(false)} />
+                        <motion.div 
+                          initial={{ opacity: 0, y: 5 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="absolute bottom-full left-0 mb-4 p-1.5 bg-[#111] border border-[#222] rounded-xl shadow-[0_4px_30px_rgba(0,0,0,0.8)] flex flex-col gap-1 z-[101] min-w-[170px]"
+                        >
                           <button 
-                            onClick={() => { onModeChange('plan'); setShowModeSelect(false); }}
-                            className={`text-left px-3 py-2 text-xs rounded-lg transition-colors flex items-center justify-between ${mode === 'plan' ? 'bg-[#222] text-white' : 'text-[#888] hover:bg-[#1A1A1A] hover:text-[#DDD]'}`}
+                            onClick={() => { onModeChange('auto'); setShowModeSelect(false); }}
+                            className={`text-left px-2.5 py-2 rounded-lg transition-colors flex flex-col gap-0.5 ${mode === 'auto' ? 'bg-[#222] text-white' : 'text-[#888] hover:bg-[#151515] hover:text-[#DDD]'}`}
                           >
-                            <span>Plan (Agent)</span>
-                            {mode === 'plan' ? <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" /> : <div className="w-1.5 h-1.5 rounded-full bg-transparent" />}
-                         </button>
-                       </motion.div>
-                     </>
-                   )}
-                 </div>
+                            <div className="flex items-center justify-between w-full text-xs font-semibold">
+                              <span>auto</span>
+                              {mode === 'auto' ? <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" /> : <div className="w-1.5 h-1.5 rounded-full bg-transparent" />}
+                            </div>
+                            <span className="text-[9px] text-neutral-500 font-mono">Оптимальный автовыбор</span>
+                          </button>
+
+                          <button 
+                            onClick={() => { onModeChange('mini'); setShowModeSelect(false); }}
+                            className={`text-left px-2.5 py-2 rounded-lg transition-colors flex flex-col gap-0.5 ${mode === 'mini' ? 'bg-[#222] text-white' : 'text-[#888] hover:bg-[#151515] hover:text-[#DDD]'}`}
+                          >
+                            <div className="flex items-center justify-between w-full text-xs font-semibold">
+                              <span>YorN mini</span>
+                              {mode === 'mini' ? <div className="w-1.5 h-1.5 rounded-full bg-blue-400" /> : <div className="w-1.5 h-1.5 rounded-full bg-transparent" />}
+                            </div>
+                            <span className="text-[9px] text-neutral-500 font-mono">Легкая и быстрая (8B)</span>
+                          </button>
+
+                          <button 
+                            onClick={() => { onModeChange('base'); setShowModeSelect(false); }}
+                            className={`text-left px-2.5 py-2 rounded-lg transition-colors flex flex-col gap-0.5 ${mode === 'base' ? 'bg-[#222] text-white' : 'text-[#888] hover:bg-[#151515] hover:text-[#DDD]'}`}
+                          >
+                            <div className="flex items-center justify-between w-full text-xs font-semibold">
+                              <span>YorN base</span>
+                              {mode === 'base' ? <div className="w-1.5 h-1.5 rounded-full bg-purple-400" /> : <div className="w-1.5 h-1.5 rounded-full bg-transparent" />}
+                            </div>
+                            <span className="text-[9px] text-neutral-500 font-mono">Универсальная (32B Coder)</span>
+                          </button>
+
+                          <button 
+                            onClick={() => { onModeChange('max'); setShowModeSelect(false); }}
+                            className={`text-left px-2.5 py-2 rounded-lg transition-colors flex flex-col gap-0.5 ${mode === 'max' ? 'bg-[#222] text-white' : 'text-[#888] hover:bg-[#151515] hover:text-[#DDD]'}`}
+                          >
+                            <div className="flex items-center justify-between w-full text-xs font-semibold">
+                              <span>Yorn MAX</span>
+                              {mode === 'max' ? <div className="w-1.5 h-1.5 rounded-full bg-amber-400" /> : <div className="w-1.5 h-1.5 rounded-full bg-transparent" />}
+                            </div>
+                            <span className="text-[9px] text-neutral-500 font-mono">Максимальный разум (72B)</span>
+                          </button>
+                        </motion.div>
+                      </>
+                    )}
+                  </div>
                  
-                 {/* Attachment Clip Button */}
+                 {/* Skills Hub Button */}
+                  <button 
+                    onClick={onOpenSkillsHub}
+                    className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-mono font-medium rounded-full border bg-[#121212]/50 border-[#222] text-[#888] hover:text-purple-400 hover:border-purple-500/30 transition-all cursor-pointer"
+                    title="Центр Навыков ИИ"
+                  >
+                    <SlidersHorizontal size={11} className="text-purple-500/70" />
+                    <span>Центр Навыков</span>
+                  </button>
+
+                  {/* Attachment Clip Button */}
                  <button 
                    onClick={triggerFileSelect}
                    title="Загрузить файлы (текст/код до 2MB)"

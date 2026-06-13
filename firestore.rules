@@ -66,5 +66,39 @@ service cloud.firestore {
         allow delete: if isSignedIn() && isOwner(parentSessionOwner());
       }
     }
+
+    // 4. Skills collection
+    match /skills/{skillId} {
+      function isValidSkill(data) {
+        return data.userId == request.auth.uid
+          && data.name is string && data.name.size() <= 100
+          && data.trigger is string && data.trigger.size() <= 64
+          && data.description is string && data.description.size() <= 500
+          && data.instructions is string && data.instructions.size() <= 10000
+          && data.createdAt is string && data.createdAt.size() <= 50
+          && data.isPublic is bool
+          && data.authorEmail is string && data.authorEmail.size() <= 100;
+      }
+
+      allow create: if isSignedIn()
+        && isValidId(skillId)
+        && isValidSkill(incoming())
+        && incoming().keys().hasAll(['userId', 'name', 'trigger', 'description', 'instructions', 'createdAt', 'isPublic', 'authorEmail'])
+        && incoming().keys().size() == 8;
+
+      allow get: if isSignedIn();
+
+      allow list: if isSignedIn();
+
+      allow update: if isSignedIn()
+        && isValidId(skillId)
+        && existing().userId == request.auth.uid
+        && isValidSkill(incoming())
+        && incoming().userId == existing().userId
+        && incoming().createdAt == existing().createdAt
+        && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'trigger', 'description', 'instructions', 'isPublic', 'authorEmail']);
+
+      allow delete: if isSignedIn() && existing().userId == request.auth.uid;
+    }
   }
 }

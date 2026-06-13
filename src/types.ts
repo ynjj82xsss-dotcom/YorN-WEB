@@ -29,3 +29,27 @@ export interface AppNotification {
   author: string;
 }
 
+export interface Skill {
+  id: string;
+  userId?: string; // Opt for custom skills
+  name: string;
+  trigger: string; // e.g. "translate"
+  description: string;
+  instructions: string;
+  createdAt: string;
+  isSystem?: boolean;
+  isPublic?: boolean;
+  authorEmail?: string;
+}
+
+export interface IntegrationConfig {
+  id: string; // "github" | "weather" | "crypto" | "search" | "webhook"
+  name: string;
+  description: string;
+  isEnabled: boolean;
+  value: string; // Primary parameter/value
+  placeholder: string;
+  label: string;
+}
+
+
