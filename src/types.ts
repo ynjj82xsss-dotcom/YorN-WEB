@@ -10,6 +10,9 @@ export type Message = {
   timestamp: string;
   isAnimated?: boolean;
   attachments?: MessageAttachment[];
+  isSuicideSupport?: boolean;
+  isDrugSupport?: boolean;
+  isTerrorismSupport?: boolean;
 };
 
 export type ChatSession = {
@@ -43,13 +46,20 @@ export interface Skill {
 }
 
 export interface IntegrationConfig {
-  id: string; // "github" | "weather" | "crypto" | "search" | "webhook"
+  id: string; // "supabase" | "github" | "vercel" | "firebase"
   name: string;
   description: string;
   isEnabled: boolean;
-  value: string; // Primary parameter/value
+  value: string; // Primary default (e.g. table name or repo name)
   placeholder: string;
   label: string;
+  fields: {
+    key: string;
+    label: string;
+    value: string;
+    type: 'text' | 'password';
+    placeholder: string;
+  }[];
 }
 
 

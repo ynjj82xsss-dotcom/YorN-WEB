@@ -19,150 +19,280 @@ const MODELS = [
   "Qwen/Qwen2.5-72B-Instruct"
 ];
 
-async function resolveIntegrations(integrations: any[] | undefined, userMessage: string): Promise<string> {
-  let activeIntegrations = integrations;
-  if (!activeIntegrations || !Array.isArray(activeIntegrations)) {
-    // Scaffold fallback detect list
-    activeIntegrations = [
-      { id: 'weather', isEnabled: userMessage.includes('/weather'), value: '' },
-      { id: 'crypto', isEnabled: userMessage.includes('/crypto'), value: '' },
-      { id: 'github', isEnabled: userMessage.includes('/github'), value: '' },
-      { id: 'search', isEnabled: userMessage.includes('/search') || userMessage.toLowerCase().startsWith('погугли') || userMessage.toLowerCase().startsWith('найди в интернете'), value: '' }
-    ];
-  }
+function getIntegrationField(integration: any, key: string): string {
+  if (!integration || !integration.fields || !Array.isArray(integration.fields)) return '';
+  const f = integration.fields.find((fld: any) => fld.key === key);
+  return f ? f.value || '' : '';
+}
 
+async function resolveIntegrations(integrations: any[] | undefined, userMessage: string): Promise<string> {
+  const activeIntegrations = integrations || [];
   let contextBlocks: string[] = [];
 
-  // Parse explicit message commands if any, e.g. /weather Rome, /crypto ethereum, /github owner/repo, /search query
-  const weatherMatch = userMessage.trim().match(/\/weather\s+([^\n]+)/i);
-  const cryptoMatch = userMessage.trim().match(/\/crypto\s+([^\n]+)/i);
-  const githubMatch = userMessage.trim().match(/\/github\s+([^\n]+)/i);
-  const searchMatch = userMessage.trim().match(/\/search\s+([^\n]+)/i);
+  // Parse command patterns (e.g. /supabase products, /github facebook/react, /vercel my-app, /firebase users)
+  const supabaseMatch = userMessage.trim().match(/\/supabase(?:\s+([^\s\n]+))?/i);
+  const githubMatch = userMessage.trim().match(/\/github(?:\s+([^\s\n]+))?/i);
+  const vercelMatch = userMessage.trim().match(/\/vercel(?:\s+([^\s\n]+))?/i);
+  const firebaseMatch = userMessage.trim().match(/\/firebase(?:\s+([^\s\n]+))?/i);
 
-  // 1. Weather
-  const weatherInt = activeIntegrations.find(i => i.id === 'weather');
-  if (weatherInt?.isEnabled || weatherMatch) {
-    const city = weatherMatch ? weatherMatch[1].trim() : (weatherInt?.value || 'Москва');
-    try {
-      // OpenWeatherMap key
-      const weatherUrl = `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(city)}&appid=85bcfa8346e392ff15c8df7cbdc1e95c&units=metric&lang=ru`;
-      const wRes = await fetch(weatherUrl);
-      if (wRes.ok) {
-        const wData: any = await wRes.json();
-        if (wData && wData.main) {
-          contextBlocks.push(`[ИНТЕГРАЦИЯ Weather]: Текущая погода в г. ${wData.name} (${wData.sys?.country}): ${wData.weather?.[0]?.description || 'без осадков'}. Температура: ${wData.main.temp}°C (ощущается как ${wData.main.feels_like}°C), влажность: ${wData.main.humidity}%, ветер: ${wData.wind?.speed} м/с.`);
-        } else {
-          contextBlocks.push(`[ИНТЕГРАЦИЯ Weather]: Не удалось найти погоду для города "${city}".`);
-        }
-      } else {
-        contextBlocks.push(`[ИНТЕГРАЦИЯ Weather]: Ошибка запроса погоды для "${city}" (код ${wRes.status}).`);
+  // 1. Supabase Database REST
+  const supabaseInt = activeIntegrations.find(i => i.id === 'supabase');
+  if (supabaseInt?.isEnabled || supabaseMatch) {
+    const table = (supabaseMatch && supabaseMatch[1]) ? supabaseMatch[1].trim() : (supabaseInt?.value || 'users');
+    let url = getIntegrationField(supabaseInt, 'SUPABASE_URL').trim();
+    const anonKey = getIntegrationField(supabaseInt, 'SUPABASE_ANON_KEY').trim();
+
+    if (!url || !anonKey) {
+      contextBlocks.push(`[ИНТЕГРАЦИЯ Supabase]: Ошибка — Не заполнены параметры подключения (Supabase Project URL или Anon Key) в конфигурации.`);
+    } else {
+      if (!url.startsWith('http://') && !url.startsWith('https://')) {
+        url = `https://${url}`;
       }
-    } catch (e: any) {
-      contextBlocks.push(`[ИНТЕГРАЦИЯ Weather]: Сбой связи с метеосервисом: ${e.message}`);
+      // Remove trailing slashes
+      url = url.replace(/\/+$/, '');
+
+      try {
+        const targetUrl = `${url}/rest/v1/${table}?limit=5`;
+        const sRes = await fetch(targetUrl, {
+          headers: {
+            'apikey': anonKey,
+            'Authorization': `Bearer ${anonKey}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (sRes.ok) {
+          const rows = await sRes.json();
+          contextBlocks.push(`[ИНТЕГРАЦИЯ Supabase (Таблица: ${table})]: Успешный запрос!\nДанные строк (первые 5):\n${JSON.stringify(rows, null, 2)}`);
+        } else {
+          const errMsg = await sRes.text().catch(() => '');
+          contextBlocks.push(`[ИНТЕГРАЦИЯ Supabase (Таблица: ${table})]: Ошибка запроса к БД. Код ${sRes.status}: ${errMsg || 'Неизвестная ошибка'}`);
+        }
+      } catch (e: any) {
+        contextBlocks.push(`[ИНТЕГРАЦИЯ Supabase (Таблица: ${table})]: Сбой при отправке запроса: ${e.message}`);
+      }
     }
   }
 
-  // 2. Crypto Price
-  const cryptoInt = activeIntegrations.find(i => i.id === 'crypto');
-  if (cryptoInt?.isEnabled || cryptoMatch) {
-    let coin = cryptoMatch ? cryptoMatch[1].trim().toLowerCase() : (cryptoInt?.value?.toLowerCase() || 'bitcoin');
-    if (coin === 'btc') coin = 'bitcoin';
-    if (coin === 'eth') coin = 'ethereum';
-    if (coin === 'sol') coin = 'solana';
-    if (coin === 'usdt') coin = 'tether';
-    
-    try {
-      const cryptoUrl = `https://api.coingecko.com/api/v3/simple/price?ids=${coin}&vs_currencies=usd&include_24hr_change=true`;
-      const cRes = await fetch(cryptoUrl);
-      if (cRes.ok) {
-        const cData: any = await cRes.json();
-        if (cData && cData[coin]) {
-          const price = cData[coin].usd;
-          const change = cData[coin].usd_24h_change !== undefined ? cData[coin].usd_24h_change.toFixed(2) : 'Н/Д';
-          contextBlocks.push(`[ИНТЕГРАЦИЯ Crypto]: Курс криптовалюты ${coin.toUpperCase()}: $${price} (изменение за 24ч: ${change}%).`);
-        } else {
-          contextBlocks.push(`[ИНТЕГРАЦИЯ Crypto]: Не удалось получить курс для ID "${coin}". Проверьте правильность ID на CoinGecko.`);
-        }
-      } else {
-        contextBlocks.push(`[ИНТЕГРАЦИЯ Crypto]: Ошибка со стороны API (код ${cRes.status}).`);
-      }
-    } catch (e: any) {
-      contextBlocks.push(`[ИНТЕГРАЦИЯ Crypto]: Сбой CoinGecko API: ${e.message}`);
-    }
-  }
-
-  // 3. GitHub repository
+  // 2. GitHub Developer API
   const githubInt = activeIntegrations.find(i => i.id === 'github');
   if (githubInt?.isEnabled || githubMatch) {
-    const repo = githubMatch ? githubMatch[1].trim() : (githubInt?.value || 'facebook/react');
+    const repo = (githubMatch && githubMatch[1]) ? githubMatch[1].trim() : (githubInt?.value || 'facebook/react');
+    const token = getIntegrationField(githubInt, 'GITHUB_TOKEN').trim();
+    
     try {
-      const gRes = await fetch(`https://api.github.com/repos/${repo}`, { headers: { 'User-Agent': 'YorN-AI' } });
-      if (gRes.ok) {
-        const gData: any = await gRes.json();
-        contextBlocks.push(`[ИНТЕГРАЦИЯ GitHub]: Репозиторий ${gData.full_name}. Описание: "${gData.description || 'нет'}". Звёзд: ⭐${gData.stargazers_count}, Форков: 🍴${gData.forks_count}, Открытых Issue: 🐛${gData.open_issues_count}. Последнее обновление: ${gData.updated_at}. Ссылка: ${gData.html_url}`);
+      const headers: Record<string, string> = {
+        'User-Agent': 'YorN-AI'
+      };
+      if (token) {
+        headers['Authorization'] = `token ${token}`;
+      }
+
+      // Fetch repository basic info
+      const rRes = await fetch(`https://api.github.com/repos/${repo}`, { headers });
+      if (rRes.ok) {
+        const rData: any = await rRes.json();
+        // Fetch commits
+        const cRes = await fetch(`https://api.github.com/repos/${repo}/commits?per_page=3`, { headers });
+        let commitsContext = '';
+        if (cRes.ok) {
+          const cData: any = await cRes.json();
+          commitsContext = cData.map((cmt: any) => `- Commited by ${cmt.commit?.author?.name || 'unknown'}: "${cmt.commit?.message || ''}" (${cmt.sha?.substring(0, 7)})`).join('\n');
+        }
+
+        contextBlocks.push(`[ИНТЕГРАЦИЯ GitHub (${repo})]:\n- Название: ${rData.full_name}\n- Описание: "${rData.description || 'нет'}"\n- Звезд: ⭐ ${rData.stargazers_count} | Форков: 🍴 ${rData.forks_count} | Открытых Issue: 🐛 ${rData.open_issues_count}\n- Последние коммиты:\n${commitsContext || 'Нет коммитов'}`);
       } else {
-        contextBlocks.push(`[ИНТЕГРАЦИЯ GitHub]: Публичный репозиторий "${repo}" не найден или превышен лимит запросов GitHub API (код ${gRes.status}).`);
+        contextBlocks.push(`[ИНТЕГРАЦИЯ GitHub (${repo})]: Публичный репозиторий не найден или превышен лимит таймаута GitHub API (Код ${rRes.status}).`);
       }
     } catch (e: any) {
-      contextBlocks.push(`[ИНТЕГРАЦИЯ GitHub]: Сбой GitHub API: ${e.message}`);
+      contextBlocks.push(`[ИНТЕГРАЦИЯ GitHub (${repo})]: Ошибка подключения к GitHub API: ${e.message}`);
     }
   }
 
-  // 4. DuckDuckGo Web Search
-  const searchInt = activeIntegrations.find(i => i.id === 'search');
-  if (searchInt?.isEnabled || searchMatch) {
-    const queryStr = searchMatch ? searchMatch[1].trim() : (searchInt?.value || userMessage);
-    try {
-      const ddgUrl = `https://api.duckduckgo.com/?q=${encodeURIComponent(queryStr)}&format=json&no_html=1`;
-      const searchRes = await fetch(ddgUrl, { headers: { 'User-Agent': 'YorN-AI-Agent' } });
-      if (searchRes.ok) {
-        const sData: any = await searchRes.json();
-        let abstract = sData.AbstractText || '';
-        let topicsText = '';
-        if (sData.RelatedTopics && Array.isArray(sData.RelatedTopics)) {
-          topicsText = sData.RelatedTopics.slice(0, 3)
-            .map((t: any) => t.Text || (t.Topics && Array.isArray(t.Topics) ? t.Topics[0]?.Text : ''))
-            .filter(Boolean)
-            .join(' | ');
+  // 3. Vercel Deployment Tracker
+  const vercelInt = activeIntegrations.find(i => i.id === 'vercel');
+  if (vercelInt?.isEnabled || vercelMatch) {
+    const projectFilter = (vercelMatch && vercelMatch[1]) ? vercelMatch[1].trim() : (vercelInt?.value || '');
+    const token = getIntegrationField(vercelInt, 'VERCEL_TOKEN').trim();
+
+    if (!token) {
+      contextBlocks.push(`[ИНТЕГРАЦИЯ Vercel]: Ошибка — Vercel API Token не заполнен в настройках для выполнения деплой-запросов.`);
+    } else {
+      try {
+        let deploymentsUrl = 'https://api.vercel.com/v6/deployments?limit=4';
+        if (projectFilter) {
+          deploymentsUrl += `&projectId=${encodeURIComponent(projectFilter)}`;
         }
-        
-        if (abstract || topicsText) {
-          contextBlocks.push(`[ИНТЕГРАЦИЯ Web Search]: Результаты поиска по запросу "${queryStr}":\n- Сводка: ${abstract || 'Сводный конспект отсутствует.'}\n- Дополнительные факты: ${topicsText || 'нет данных'}.`);
+        const vRes = await fetch(deploymentsUrl, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (vRes.ok) {
+          const vData: any = await vRes.json();
+          const list = vData.deployments || [];
+          const serialized = list.map((d: any) => `- URL: https://${d.url} | Проект: ${d.name} | Статус: ${d.state} | Редакция: ${d.creator?.username || 'unknown'}`).join('\n');
+          contextBlocks.push(`[ИНТЕГРАЦИЯ Vercel]: Последние деплои:\n${serialized || 'Нет активных деплоев.'}`);
         } else {
-          contextBlocks.push(`[ИНТЕГРАЦИЯ Web Search]: В DuckDuckGo не найдено однозначного ответа по запросу "${queryStr}".`);
+          const errText = await vRes.text().catch(() => '');
+          contextBlocks.push(`[ИНТЕГРАЦИЯ Vercel]: Ошибка получения деплоев. Код ${vRes.status}. Ответ: ${errText}`);
         }
-      } else {
-        contextBlocks.push(`[ИНТЕГРАЦИЯ Web Search]: Ошибка поискового шлюза DuckDuckGo API (код ${searchRes.status}).`);
+      } catch (e: any) {
+        contextBlocks.push(`[ИНТЕГРАЦИЯ Vercel]: Сетевой сбой Vercel API: ${e.message}`);
       }
-    } catch (e: any) {
-      contextBlocks.push(`[ИНТЕГРАЦИЯ Web Search]: Сетевой сбой выполнения веб-поиска: ${e.message}`);
     }
   }
 
-  // 5. Automated Webhook trigger (Runs on message send)
-  const webhookInt = activeIntegrations.find(i => i.id === 'webhook');
-  if (webhookInt?.isEnabled && webhookInt.value) {
-    try {
-      fetch(webhookInt.value, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          source: 'YorN Neural Workspace',
-          event: 'chat_query',
-          message: userMessage,
-          timestamp: new Date().toISOString()
-        })
-      }).catch(err => console.error("Async webhook callback failed:", err.message));
-      contextBlocks.push(`[ИНТЕГРАЦИЯ Webhook]: Вебхук отправлен на ${webhookInt.value}.`);
-    } catch (e: any) {
-      contextBlocks.push(`[ИНТЕГРАЦИЯ Webhook]: Не удалось отправить вебхук: ${e.message}`);
+  // 4. Firebase Firestore REST API
+  const firebaseInt = activeIntegrations.find(i => i.id === 'firebase');
+  if (firebaseInt?.isEnabled || firebaseMatch) {
+    const collection = (firebaseMatch && firebaseMatch[1]) ? firebaseMatch[1].trim() : (firebaseInt?.value || 'users');
+    const projectId = getIntegrationField(firebaseInt, 'FIREBASE_PROJECT_ID').trim();
+
+    if (!projectId) {
+      contextBlocks.push(`[ИНТЕГРАЦИЯ Firebase]: Ошибка — Не указан Firebase Project ID в настройках интеграции.`);
+    } else {
+      try {
+        const firestoreUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/${collection}?pageSize=5`;
+        const fRes = await fetch(firestoreUrl);
+        if (fRes.ok) {
+          const fData: any = await fRes.json();
+          const docs = fData.documents || [];
+          const items = docs.map((d: any) => {
+            const nameSegments = d.name ? d.name.split('/') : [];
+            const docId = nameSegments[nameSegments.length - 1] || 'doc';
+            return `- ID: ${docId} | Поля: ${JSON.stringify(d.fields || {})}`;
+          }).join('\n');
+
+          contextBlocks.push(`[ИНТЕГРАЦИЯ Firestore (Коллекция: ${collection})]: Успешно прочитано!\nНайденные документы (первые 5):\n${items || 'Нет документов в коллекции.'}`);
+        } else {
+          contextBlocks.push(`[ИНТЕГРАЦИЯ Firestore (Коллекция: ${collection})]: Ошибка возврата REST Firestore. Код ${fRes.status}`);
+        }
+      } catch (e: any) {
+        contextBlocks.push(`[ИНТЕГРАЦИЯ Firestore]: Ошибка связи с серверами Google API: ${e.message}`);
+      }
+    }
+  }
+
+  // 5. Dynamic ToolsConnector Custom Connectors Execution
+  for (const item of activeIntegrations) {
+    if (['supabase', 'github', 'vercel', 'firebase'].includes(item.id)) {
+      continue; // Handled by specialized high-level connector wrappers above
+    }
+
+    const commandRegex = new RegExp('\\/' + item.id + '(?:\\s+([\\s\\S]+))?', 'i');
+    const match = userMessage.trim().match(commandRegex);
+
+    if (item.isEnabled || match) {
+      const parameter = (match && match[1]) ? match[1].trim() : (item.value || '');
+      
+      // Look for target URL/Webhook endpoint configuration
+      let url = '';
+      if (item.value && (item.value.startsWith('http://') || item.value.startsWith('https://'))) {
+        url = item.value;
+      } else {
+        // Fallback to checking configured fields for URL / endpoint strings
+        const urlField = item.fields?.find((f: any) => 
+          f.key.toUpperCase().includes('URL') || 
+          f.key.toUpperCase().includes('ENDPOINT') || 
+          f.key.toUpperCase().includes('WEBHOOK')
+        );
+        if (urlField && urlField.value && (urlField.value.startsWith('http://') || urlField.value.startsWith('https://'))) {
+          url = urlField.value;
+        }
+      }
+
+      if (!url) {
+        // No HTTP URL target. Treat as a safe metadata configuration store used in active context
+        const fieldsContext = (item.fields || []).map((f: any) => 
+          `- ${f.label || f.key}: ${f.type === 'password' ? '••••••••' : f.value || 'пусто'}`
+        ).join('\n');
+        contextBlocks.push(`[ИНТЕГРАЦИЯ ${item.name} (/${item.id})]: Коннектор активирован.\nПараметр: "${parameter || 'не указан'}"\nКонфигурация параметров в системе:\n${fieldsContext || 'Нет локальной конфигурации полей.'}`);
+      } else {
+        // We have a fully valid URL! Proceed to perform a real API/Webhook execution call 
+        try {
+          const headers: Record<string, string> = {
+            'Content-Type': 'application/json',
+            'User-Agent': 'YorN-ToolsConnector/1.0'
+          };
+
+          // Auto-inject fields as headers or query payloads
+          (item.fields || []).forEach((f: any) => {
+            if (f.value) {
+              const k = f.key.trim();
+              if (k.toUpperCase().startsWith('HEADER_')) {
+                // Support custom user-defined headers e.g. HEADER_X_API_SECRET -> X-API-Secret
+                const headerName = k.substring(7).replace(/_/g, '-');
+                headers[headerName] = f.value;
+              } else if (
+                k.toUpperCase() === 'AUTHORIZATION' || 
+                k.toUpperCase() === 'AUTH_TOKEN' || 
+                k.toUpperCase() === 'TOKEN' || 
+                k.toUpperCase() === 'API_KEY' ||
+                k.toUpperCase() === 'SECRET_KEY'
+              ) {
+                if (k.toUpperCase() === 'AUTHORIZATION') {
+                  headers['Authorization'] = f.value.startsWith('Bearer ') || f.value.startsWith('Basic ') ? f.value : `Bearer ${f.value}`;
+                } else {
+                  headers['X-API-Key'] = f.value;
+                  headers['Authorization'] = `Bearer ${f.value}`;
+                }
+              }
+            }
+          });
+
+          const hasBody = !!parameter;
+          const method = hasBody ? 'POST' : 'GET';
+          const fetchOptions: any = {
+            method,
+            headers,
+          };
+
+          if (hasBody) {
+            // General JSON body for automation webhooks (Activepieces, Make, Zapier, n8n, Slack custom incoming, custom backend APIs)
+            fetchOptions.body = JSON.stringify({
+              text: parameter,
+              message: parameter,
+              query: parameter,
+              payload: parameter,
+              connectorId: item.id,
+              connectorName: item.name,
+              timestamp: new Date().toISOString()
+            });
+          }
+
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 6000);
+          fetchOptions.signal = controller.signal;
+
+          const response = await fetch(url, fetchOptions);
+          clearTimeout(timeoutId);
+
+          if (response.ok) {
+            let dataText = '';
+            try {
+              const resData = await response.json();
+              dataText = JSON.stringify(resData, null, 2);
+            } catch {
+              dataText = await response.text();
+            }
+            contextBlocks.push(`[ИНТЕГРАЦИЯ ${item.name} (/${item.id}) -> Успешный реальный вызов ${url} (${response.status})]:\n${dataText.substring(0, 1500)}`);
+          } else {
+            const errText = await response.text().catch(() => '');
+            contextBlocks.push(`[ИНТЕГРАЦИЯ ${item.name} (/${item.id}) -> API отвклонил вызов к ${url} (${response.status})]: ${errText.substring(0, 500)}`);
+          }
+        } catch (e: any) {
+          contextBlocks.push(`[ИНТЕГРАЦИЯ ${item.name} (/${item.id}) -> Сбой сетевого соединения с ${url}]: ${e.message}`);
+        }
+      }
     }
   }
 
   if (contextBlocks.length > 0) {
     return `\n\n=== АКТУАЛЬНЫЕ ДАННЫЕ ОНЛАЙН-ИНТЕГРАЦИЙ ===\nИспользуйте эту новейшую информацию для формирования ответа пользователю:\n${contextBlocks.join('\n\n')}\n==========================================`;
   }
-  
+
   return '';
 }
 

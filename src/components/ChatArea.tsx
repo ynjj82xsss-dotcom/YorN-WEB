@@ -69,6 +69,7 @@ interface ChatAreaProps {
   customSkills?: Skill[];
   systemSkills?: Skill[];
   onOpenSkillsHub?: () => void;
+  chatStyle?: 'default' | 'cyberpunk' | 'glass' | 'brutalist';
 }
 
 export default function ChatArea({ 
@@ -91,7 +92,8 @@ export default function ChatArea({
   onOpenNotifications,
   customSkills = [],
   systemSkills = [],
-  onOpenSkillsHub
+  onOpenSkillsHub,
+  chatStyle = 'default'
 }: ChatAreaProps) {
   const [inputValue, setInputValue] = useState('');
   const [isRecording, setIsRecording] = useState(false);
@@ -109,6 +111,163 @@ export default function ChatArea({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Handle different chat panel styles
+  const isCyberpunk = chatStyle === 'cyberpunk';
+  const isGlass = chatStyle === 'glass';
+  const isBrutalist = chatStyle === 'brutalist';
+
+  let borderGlowContainerClass = "absolute -inset-0.5 bg-gradient-to-r from-neutral-800/15 to-neutral-700/15 rounded-2xl blur opacity-0 group-hover:opacity-100 transition duration-700 pointer-events-none";
+  let inputContainerBorderClass = `relative rounded-2xl transition-all shadow-xl flex flex-col ${
+    isTyping && loadingAnimation === 'border' 
+      ? 'p-[1.5px]' 
+      : 'border border-[#1E1E22] focus-within:border-neutral-700/80 focus-within:bg-[#0D0D10] bg-[#0A0A0C] p-4'
+  }`;
+  let inputInnerContainerClass = `relative flex flex-col w-full h-full z-10 ${
+    isTyping && loadingAnimation === 'border' ? 'bg-[#0a0a0c] p-4 rounded-[15px]' : ''
+  }`;
+  let textareaStylesClass = "w-full bg-transparent border-none outline-none text-base md:text-sm text-neutral-200 placeholder-neutral-500 resize-none leading-relaxed min-h-[48px] max-h-[150px] scrollbar-hide font-sans";
+  let actionsBorderClass = "flex items-center justify-between pt-2 border-t border-[#161619] mt-2 relative";
+  let attachmentBadgeClass = "flex items-center gap-2 bg-[#141416] border border-[#222] text-neutral-300 py-1 px-2.5 rounded-lg text-xs font-sans";
+  let dropdownPortalClass = "absolute bottom-full left-0 mb-4 p-1.5 bg-[#0F0F12] border border-[#1E1E22] rounded-xl shadow-[0_10px_35px_rgba(0,0,0,0.6)] flex flex-col gap-1 z-[101] min-w-[170px]";
+  let dropdownItemClass = (isActive: boolean) => {
+    return `text-left px-2.5 py-2 rounded-lg transition-colors flex flex-col gap-0.5 ${
+      isActive 
+        ? 'bg-[#202025] text-white' 
+        : 'text-neutral-400 hover:bg-[#151518] hover:text-neutral-200'
+    }`;
+  };
+
+  if (isCyberpunk) {
+    borderGlowContainerClass = "absolute -inset-1.5 bg-gradient-to-r from-indigo-500/10 via-purple-500/15 to-pink-500/10 rounded-2xl blur-md opacity-35 group-hover:opacity-75 transition-opacity duration-1000 pointer-events-none";
+    inputContainerBorderClass = `relative rounded-2xl transition-all shadow-[0_0_30px_rgba(168,85,247,0.03)] flex flex-col ${
+      isTyping && loadingAnimation === 'border' 
+        ? 'p-[1.5px]' 
+        : 'border border-[#20153B] focus-within:border-purple-500/50 focus-within:bg-[#0C081A] bg-[#07040E] p-4'
+    }`;
+    inputInnerContainerClass = `relative flex flex-col w-full h-full z-10 ${
+      isTyping && loadingAnimation === 'border' ? 'bg-[#0c081a] p-4 rounded-[15px]' : ''
+    }`;
+    textareaStylesClass = "w-full bg-transparent border-none outline-none text-base md:text-sm text-purple-100 placeholder-purple-900/40 resize-none leading-relaxed min-h-[48px] max-h-[150px] scrollbar-hide font-sans";
+    actionsBorderClass = "flex items-center justify-between pt-2 border-t border-purple-950/20 mt-2 relative";
+    attachmentBadgeClass = "flex items-center gap-2 bg-[#0E0B19] border border-purple-950/30 text-purple-300 py-1 px-2.5 rounded-lg text-xs font-sans";
+    dropdownPortalClass = "absolute bottom-full left-0 mb-4 p-1.5 bg-[#0C081A] border border-purple-950/50 rounded-xl shadow-[0_10px_35px_rgba(168,85,247,0.1)] flex flex-col gap-1 z-[101] min-w-[170px]";
+    dropdownItemClass = (isActive: boolean) => {
+      return `text-left px-2.5 py-2 rounded-lg transition-colors flex flex-col gap-0.5 ${
+        isActive 
+          ? 'bg-purple-950/35 text-purple-200 border-l-2 border-purple-500/60 pl-2' 
+          : 'text-purple-400/80 hover:bg-purple-950/15 hover:text-purple-200'
+      }`;
+    };
+  } else if (isGlass) {
+    borderGlowContainerClass = "absolute -inset-0.5 bg-white/5 rounded-2xl blur opacity-0 group-hover:opacity-40 transition duration-1000 pointer-events-none";
+    inputContainerBorderClass = `relative rounded-2xl transition-all shadow-[0_12px_40px_rgba(0,0,0,0.5),_inset_0_1px_0_rgba(255,255,255,0.05)] flex flex-col backdrop-blur-xl ${
+      isTyping && loadingAnimation === 'border' 
+        ? 'p-[1.5px]' 
+        : 'border border-white/[0.08] focus-within:border-white/[0.18] focus-within:bg-white/[0.035] bg-white/[0.015] p-4'
+    }`;
+    inputInnerContainerClass = `relative flex flex-col w-full h-full z-10 ${
+      isTyping && loadingAnimation === 'border' ? 'bg-white/[0.025] p-4 rounded-[15px]' : ''
+    }`;
+    textareaStylesClass = "w-full bg-transparent border-none outline-none text-base md:text-sm text-neutral-100 placeholder-neutral-500 resize-none leading-relaxed min-h-[48px] max-h-[150px] scrollbar-hide font-sans";
+    actionsBorderClass = "flex items-center justify-between pt-2 border-t border-white/[0.05] mt-2 relative";
+    attachmentBadgeClass = "flex items-center gap-2 bg-white/[0.02] border border-white/[0.06] text-white/80 py-1 px-2.5 rounded-lg text-xs font-sans";
+    dropdownPortalClass = "absolute bottom-full left-0 mb-4 p-1.5 bg-[#0F0F12]/90 border border-white/[0.08] backdrop-blur-xl rounded-xl shadow-[0_10px_35px_rgba(0,0,0,0.7)] flex flex-col gap-1 z-[101] min-w-[170px]";
+    dropdownItemClass = (isActive: boolean) => {
+      return `text-left px-2.5 py-2 rounded-lg transition-colors flex flex-col gap-0.5 ${
+        isActive 
+          ? 'bg-white/10 text-white' 
+          : 'text-white/50 hover:bg-white/5 hover:text-white'
+      }`;
+    };
+  } else if (isBrutalist) {
+    borderGlowContainerClass = "absolute -inset-0.5 bg-neutral-900 rounded-none opacity-0 group-hover:opacity-100 transition duration-500 pointer-events-none";
+    inputContainerBorderClass = `relative rounded-none transition-all shadow-[4px_4px_0_0_rgba(10,10,10,1)] hover:shadow-[6px_6px_0_0_rgba(20,20,20,1)] flex flex-col duration-300 ${
+      isTyping && loadingAnimation === 'border' 
+        ? 'p-[1.5px]' 
+        : 'border border-neutral-850 focus-within:border-neutral-200 bg-black p-4'
+    }`;
+    inputInnerContainerClass = `relative flex flex-col w-full h-full z-10 ${
+      isTyping && loadingAnimation === 'border' ? 'bg-black p-4 rounded-none' : ''
+    }`;
+    textareaStylesClass = "w-full bg-transparent border-none outline-none text-base md:text-sm text-[#F0F0F0] placeholder-neutral-700 resize-none leading-relaxed min-h-[48px] max-h-[150px] scrollbar-hide font-mono";
+    actionsBorderClass = "flex items-center justify-between pt-2 border-t border-neutral-900 mt-2 relative";
+    attachmentBadgeClass = "flex items-center gap-2 bg-black border border-neutral-800 text-neutral-300 py-1 px-3 rounded-none text-xs font-mono";
+    dropdownPortalClass = "absolute bottom-full left-0 mb-4 p-1.5 bg-black border-2 border-neutral-100 rounded-none shadow-[4px_4px_0_0_rgba(255,255,255,1)] flex flex-col gap-1 z-[101] min-w-[170px]";
+    dropdownItemClass = (isActive: boolean) => {
+      return `text-left px-2.5 py-2 rounded-none transition-colors flex flex-col gap-0.5 ${
+        isActive 
+          ? 'bg-neutral-100 text-black font-mono font-bold' 
+          : 'text-neutral-400 hover:bg-neutral-900 hover:text-white font-mono'
+      }`;
+    };
+  }
+
+  const actionButtonClass = (isActive: boolean) => {
+    if (isCyberpunk) {
+      return isActive 
+        ? "flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-sans font-medium rounded-full border transition-all bg-purple-900/20 border-purple-500/40 text-purple-200 shadow-[0_0_8px_rgba(168,85,247,0.15)]"
+        : "flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-sans font-medium rounded-full border transition-all bg-purple-950/5 border-purple-950/30 text-purple-500 hover:text-purple-300 hover:border-purple-800/40";
+    }
+    if (isGlass) {
+      return isActive
+        ? "flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-sans font-medium rounded-full border transition-all bg-white/10 border-white/20 text-white"
+        : "flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-sans font-medium rounded-full border transition-all bg-white/[0.02] border-white/[0.05] text-white/40 hover:text-white/80 hover:border-white/15";
+    }
+    if (isBrutalist) {
+      return isActive
+        ? "flex items-center gap-1.5 px-2 py-0.5 text-[9px] uppercase font-mono tracking-wider bg-neutral-100 text-black border border-neutral-100 font-bold rounded-none transition-all"
+        : "flex items-center gap-1.5 px-2 py-0.5 text-[9px] uppercase font-mono tracking-wider bg-black border border-neutral-800 text-neutral-400 hover:text-white hover:border-neutral-500 rounded-none transition-all";
+    }
+    return isActive
+      ? "flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-sans font-medium rounded-full border transition-all bg-neutral-800 border-neutral-700 text-white"
+      : "flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-sans font-medium rounded-full border transition-all bg-neutral-900/40 border-[#1E1E22] text-neutral-400 hover:text-neutral-200 hover:border-neutral-700";
+  };
+
+  let accessoryButtonClass = "";
+  if (isCyberpunk) {
+    accessoryButtonClass = "p-1 text-purple-400 hover:text-purple-200 transition-colors cursor-pointer";
+  } else if (isGlass) {
+    accessoryButtonClass = "p-1 text-white/40 hover:text-white/80 transition-colors cursor-pointer";
+  } else if (isBrutalist) {
+    accessoryButtonClass = "p-1 text-neutral-500 hover:text-neutral-200 transition-colors cursor-pointer rounded-none";
+  } else {
+    accessoryButtonClass = "p-1 text-neutral-400 hover:text-white transition-colors cursor-pointer";
+  }
+
+  const micRecordingClass = `p-1 transition-colors ${
+    isRecording 
+      ? 'text-red-500 animate-[pulse_1.5s_ease-in-out_infinite]' 
+      : (isCyberpunk ? 'text-purple-400 hover:text-purple-200 cursor-pointer' : isGlass ? 'text-white/40 hover:text-white/80 cursor-pointer' : isBrutalist ? 'text-neutral-500 hover:text-neutral-200 cursor-pointer rounded-none' : 'text-neutral-400 hover:text-white cursor-pointer')
+  }`;
+
+  const hasInput = !!(inputValue.trim() || attachments.length > 0);
+  let sendButtonClass = "";
+  if (isCyberpunk) {
+    sendButtonClass = `w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+      hasInput 
+        ? 'bg-gradient-to-tr from-purple-600 to-indigo-500 hover:from-purple-500 hover:to-indigo-400 text-white shadow-[0_0_15px_rgba(139,92,246,0.35)] cursor-pointer' 
+        : 'bg-[#0D091B] border border-purple-950/30 text-purple-950/55 cursor-not-allowed'
+    }`;
+  } else if (isGlass) {
+    sendButtonClass = `w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+      hasInput 
+        ? 'bg-white text-black hover:bg-neutral-100 shadow-[0_8px_20px_rgba(255,255,255,0.1)] cursor-pointer' 
+        : 'bg-white/[0.02] border border-white/[0.05] text-white/15 cursor-not-allowed'
+    }`;
+  } else if (isBrutalist) {
+    sendButtonClass = `w-8 h-8 rounded-none flex items-center justify-center transition-all ${
+      hasInput 
+        ? 'bg-neutral-100 text-black hover:bg-white border border-transparent font-mono text-xs font-bold cursor-pointer' 
+        : 'bg-black border border-neutral-900 text-neutral-850 cursor-not-allowed shadow-none'
+    }`;
+  } else {
+    sendButtonClass = `w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+      hasInput 
+        ? 'bg-white text-black hover:scale-105 cursor-pointer' 
+        : 'bg-neutral-900 border border-neutral-800/40 text-neutral-600 cursor-not-allowed'
+    }`;
+  }
 
   // Merge system default skills and user custom skills
   const allAvailableSkills: Skill[] = [
@@ -565,12 +724,8 @@ export default function ChatArea({
               ))}
             </div>
           )}
-           <div className="absolute -inset-0.5 bg-[#121212]/30 rounded-2xl blur opacity-0 group-hover:opacity-100 transition duration-1000"></div>
-           <div className={`relative rounded-2xl transition-all shadow-2xl flex flex-col ${
-             isTyping && loadingAnimation === 'border' 
-               ? 'p-[1.5px]' 
-               : 'border border-[#1A1A1A] focus-within:border-[#333] bg-[#0A0A0A] p-4'
-           }`}>
+           <div className={borderGlowContainerClass}></div>
+           <div className={inputContainerBorderClass}>
              {isTyping && loadingAnimation === 'border' && (
                <motion.div
                  style={{
@@ -591,21 +746,19 @@ export default function ChatArea({
                  }}
                />
              )}
-             <div className={`relative flex flex-col w-full h-full z-10 ${
-               isTyping && loadingAnimation === 'border' ? 'bg-[#0A0A0A] p-4 rounded-[15px]' : ''
-             }`}>
+             <div className={inputInnerContainerClass}>
              
              {/* Render parsed attachment list above the input text field */}
              {attachments.length > 0 && (
                <div className="flex flex-wrap gap-2 mb-3 animate-[fadeIn_0.2s_ease-out]">
                  {attachments.map((att, idx) => (
-                   <div key={idx} className="flex items-center gap-2 bg-[#141414] border border-[#222] text-[#AAA] py-1 px-2.5 rounded-lg text-xs font-mono">
-                     <FileText size={13} className="text-purple-400" />
+                   <div key={idx} className={attachmentBadgeClass}>
+                     <FileText size={13} className={isCyberpunk ? "text-purple-300" : isGlass ? "text-white/60" : isBrutalist ? "text-neutral-400" : "text-purple-400"} />
                      <span className="truncate max-w-[150px]">{att.name}</span>
-                     <span className="text-[#555] text-[10px]">{att.size}</span>
+                     <span className={isCyberpunk ? "text-purple-600/60 text-[10px]" : isGlass ? "text-white/30 text-[10px]" : "text-neutral-500 text-[10px]"}>{att.size}</span>
                      <button 
                        onClick={() => setAttachments(prev => prev.filter((_, i) => i !== idx))}
-                       className="text-[#666] hover:text-red-400 ml-1 cursor-pointer transition-colors"
+                       className={`ml-1 cursor-pointer transition-colors ${isCyberpunk ? 'text-purple-500 hover:text-red-400' : isGlass ? 'text-white/30 hover:text-red-400' : 'text-neutral-500 hover:text-red-400'}`}
                        title="Удалить файл"
                      >
                        <X size={12} />
@@ -621,7 +774,7 @@ export default function ChatArea({
                onChange={handleInput}
                onKeyDown={handleKeyDown}
                placeholder="Спросите YorN или перетащите его сюда файлы..."
-               className="w-full bg-transparent border-none outline-none text-base md:text-sm text-[#AAA] placeholder-[#444] resize-none leading-relaxed min-h-[48px] max-h-[150px] scrollbar-hide"
+               className={textareaStylesClass}
                rows={1}
              />
              {micError && (
@@ -632,12 +785,12 @@ export default function ChatArea({
                  {micError}
                </motion.div>
              )}
-             <div className="flex items-center justify-between pt-2 border-t border-[#151515] mt-2 relative">
+             <div className={actionsBorderClass}>
                <div className="flex items-center gap-3">
                  <div className="relative">
                    <button 
                      onClick={() => setShowModeSelect(!showModeSelect)}
-                     className={`flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-mono font-medium rounded-full border transition-all ${showModeSelect ? 'bg-[#222]/80 border-neutral-700 text-white' : 'bg-[#121212]/50 border-[#222] text-[#888] hover:text-[#CCC] hover:border-[#333]'}`}
+                     className={actionButtonClass(showModeSelect)}
                      title="Выбор ИИ Модели"> <Settings2 size={11} className={showModeSelect ? "text-purple-400" : "text-[#555]"} /> <span>{mode === "mini" ? "YorN mini" : mode === "base" ? "YorN base" : mode === "max" ? "Yorn MAX" : "auto"}</span> </button>
                    
                    {showModeSelect && (
@@ -646,11 +799,11 @@ export default function ChatArea({
                         <motion.div 
                           initial={{ opacity: 0, y: 5 }}
                           animate={{ opacity: 1, y: 0 }}
-                          className="absolute bottom-full left-0 mb-4 p-1.5 bg-[#111] border border-[#222] rounded-xl shadow-[0_4px_30px_rgba(0,0,0,0.8)] flex flex-col gap-1 z-[101] min-w-[170px]"
+                          className={dropdownPortalClass}
                         >
                           <button 
                             onClick={() => { onModeChange('auto'); setShowModeSelect(false); }}
-                            className={`text-left px-2.5 py-2 rounded-lg transition-colors flex flex-col gap-0.5 ${mode === 'auto' ? 'bg-[#222] text-white' : 'text-[#888] hover:bg-[#151515] hover:text-[#DDD]'}`}
+                            className={dropdownItemClass(mode === 'auto')}
                           >
                             <div className="flex items-center justify-between w-full text-xs font-semibold">
                               <span>auto</span>
@@ -661,7 +814,7 @@ export default function ChatArea({
 
                           <button 
                             onClick={() => { onModeChange('mini'); setShowModeSelect(false); }}
-                            className={`text-left px-2.5 py-2 rounded-lg transition-colors flex flex-col gap-0.5 ${mode === 'mini' ? 'bg-[#222] text-white' : 'text-[#888] hover:bg-[#151515] hover:text-[#DDD]'}`}
+                            className={dropdownItemClass(mode === 'mini')}
                           >
                             <div className="flex items-center justify-between w-full text-xs font-semibold">
                               <span>YorN mini</span>
@@ -672,7 +825,7 @@ export default function ChatArea({
 
                           <button 
                             onClick={() => { onModeChange('base'); setShowModeSelect(false); }}
-                            className={`text-left px-2.5 py-2 rounded-lg transition-colors flex flex-col gap-0.5 ${mode === 'base' ? 'bg-[#222] text-white' : 'text-[#888] hover:bg-[#151515] hover:text-[#DDD]'}`}
+                            className={dropdownItemClass(mode === 'base')}
                           >
                             <div className="flex items-center justify-between w-full text-xs font-semibold">
                               <span>YorN base</span>
@@ -683,7 +836,7 @@ export default function ChatArea({
 
                           <button 
                             onClick={() => { onModeChange('max'); setShowModeSelect(false); }}
-                            className={`text-left px-2.5 py-2 rounded-lg transition-colors flex flex-col gap-0.5 ${mode === 'max' ? 'bg-[#222] text-white' : 'text-[#888] hover:bg-[#151515] hover:text-[#DDD]'}`}
+                            className={dropdownItemClass(mode === 'max')}
                           >
                             <div className="flex items-center justify-between w-full text-xs font-semibold">
                               <span>Yorn MAX</span>
@@ -696,21 +849,11 @@ export default function ChatArea({
                     )}
                   </div>
                  
-                 {/* Skills Hub Button */}
-                  <button 
-                    onClick={onOpenSkillsHub}
-                    className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-mono font-medium rounded-full border bg-[#121212]/50 border-[#222] text-[#888] hover:text-purple-400 hover:border-purple-500/30 transition-all cursor-pointer"
-                    title="Центр Навыков ИИ"
-                  >
-                    <SlidersHorizontal size={11} className="text-purple-500/70" />
-                    <span>Центр Навыков</span>
-                  </button>
-
                   {/* Attachment Clip Button */}
                  <button 
                    onClick={triggerFileSelect}
                    title="Загрузить файлы (текст/код до 2MB)"
-                   className="p-1 text-[#444] hover:text-[#777] transition-colors cursor-pointer"
+                   className={accessoryButtonClass}
                  >
                    <Paperclip size={16} />
                  </button>
@@ -718,7 +861,7 @@ export default function ChatArea({
                  <button 
                    onClick={toggleRecording}
                    title={isRecording ? "Остановить запись" : "Голосовой ввод"}
-                   className={`p-1 transition-colors ${isRecording ? 'text-red-500 animate-[pulse_1.5s_ease-in-out_infinite]' : 'text-[#444] hover:text-[#777]'}`}
+                   className={micRecordingClass}
                  >
                    {isRecording ? <MicOff size={16} /> : <Mic size={16} />}
                  </button>
@@ -741,8 +884,7 @@ export default function ChatArea({
                    onClick={handleSend}
                    disabled={!inputValue.trim() && attachments.length === 0}
                    title="Отправить сообщение"
-                   className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors border
-                              ${(inputValue.trim() || attachments.length > 0) ? 'bg-white/10 text-white border-white/20 hover:bg-white/20' : 'bg-[#111] text-white/40 border-[#222] hover:bg-white/5'}`}
+                   className={sendButtonClass}
                  >
                    <ArrowUp size={16} strokeWidth={2} />
                  </motion.button>

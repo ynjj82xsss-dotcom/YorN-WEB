@@ -43,27 +43,26 @@ service cloud.firestore {
         && existing().userId == request.auth.uid
         && incoming().userId == existing().userId
         && incoming().createdAt == existing().createdAt
-        && incoming().title is string && incoming().title.size() <= 200
-        && incoming().diff(existing()).affectedKeys().hasOnly(['title']);
+        && (incoming().title is string && incoming().title.size() <= 200)
+        && (incoming().diff(existing()).affectedKeys().hasOnly(['title', 'isPinned', 'isDeleted', 'deletedAt']));
 
       allow delete: if isSignedIn() && existing().userId == request.auth.uid;
 
       // 3. Messages subcollection (Master Gate relation check)
       match /messages/{messageId} {
-        function parentSessionOwner() {
-          return get(/databases/$(database)/documents/sessions/$(sessionId)).data.userId;
-        }
-
         allow create: if isSignedIn()
           && isValidId(messageId)
-          && isOwner(parentSessionOwner())
+          && isOwner(get(/databases/$(database)/documents/sessions/$(sessionId)).data.userId)
           && (incoming().role == 'user' || incoming().role == 'assistant')
           && incoming().content is string && incoming().content.size() <= 65536
           && incoming().timestamp is string && incoming().timestamp.size() <= 50;
 
-        allow read: if isSignedIn() && isOwner(parentSessionOwner());
-        
-        allow delete: if isSignedIn() && isOwner(parentSessionOwner());
+        allow get, delete: if isSignedIn() && (
+          resource.data.get('userId', null) == request.auth.uid ||
+          isOwner(get(/databases/$(database)/documents/sessions/$(sessionId)).data.userId)
+        );
+
+        allow list: if isSignedIn() && isOwner(get(/databases/$(database)/documents/sessions/$(sessionId)).data.userId);
       }
     }
 
@@ -99,6 +98,19 @@ service cloud.firestore {
         && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'trigger', 'description', 'instructions', 'isPublic', 'authorEmail']);
 
       allow delete: if isSignedIn() && existing().userId == request.auth.uid;
+    }
+
+    // 5. Notifications collection
+    match /notifications/{notificationId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isSignedIn();
+    }
+
+    // 6. Security Audit compliance logs
+    match /abuse_logs/{logId} {
+      allow create: if isSignedIn();
+      allow read: if isSignedIn() && request.auth.token.email == "b9miks10@gmail.com";
+      allow update, delete: if false; // Direct-deny: safe and non-repudiable audit trails
     }
   }
 }

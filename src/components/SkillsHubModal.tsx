@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Sparkles, Plus, Trash2, Command, FileText, Check, AlertCircle, HelpCircle, Loader2, Cloud, Globe, Lock, Languages, Bot, Cpu, Compass, Code, SlidersHorizontal, Terminal, MessageSquare, Lightbulb, Search, Coins, GitBranch, Link } from 'lucide-react';
+import { X, Sparkles, Plus, Trash2, Command, FileText, Check, AlertCircle, HelpCircle, Loader2, Cloud, Globe, Lock, Languages, Bot, Cpu, Compass, Code, SlidersHorizontal, Terminal, MessageSquare, Lightbulb, Search, Coins, GitBranch, Link, Database, Layers } from 'lucide-react';
 import { Skill, IntegrationConfig } from '../types';
 
 const getSkillIcon = (trigger: string, className = "w-4 h-4 text-neutral-400") => {
@@ -41,10 +41,10 @@ const getSkillIcon = (trigger: string, className = "w-4 h-4 text-neutral-400") =
 };
 
 const getIntegrationIcon = (id: string, className = "w-5 h-5 text-neutral-400") => {
-  if (id === 'search') return <Search className={className} />;
-  if (id === 'weather') return <Cloud className={className} />;
-  if (id === 'crypto') return <Coins className={className} />;
+  if (id === 'supabase') return <Database className={className} />;
   if (id === 'github') return <GitBranch className={className} />;
+  if (id === 'vercel') return <Layers className={className} />;
+  if (id === 'firebase') return <Cloud className={className} />;
   return <Link className={className} />;
 };
 
@@ -58,6 +58,7 @@ interface SkillsHubModalProps {
   onDeleteSkill: (skillId: string) => Promise<void>;
   integrations?: IntegrationConfig[];
   onUpdateIntegrations?: (integrations: IntegrationConfig[]) => void;
+  hubStyle?: 'default' | 'cyberpunk' | 'glass' | 'brutalist';
 }
 
 export default function SkillsHubModal({
@@ -69,7 +70,8 @@ export default function SkillsHubModal({
   onSaveSkill,
   onDeleteSkill,
   integrations = [],
-  onUpdateIntegrations
+  onUpdateIntegrations,
+  hubStyle = 'default'
 }: SkillsHubModalProps) {
   const [activeTab, setActiveTab] = useState<'hub' | 'create' | 'integrations'>('hub');
   
@@ -86,8 +88,100 @@ export default function SkillsHubModal({
   const [trainingError, setTrainingError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
+  // ToolsConnector dynamic connector form
+  const [showAddConnectorForm, setShowAddConnectorForm] = useState(false);
+  const [newConnectorName, setNewConnectorName] = useState('');
+  const [newConnectorId, setNewConnectorId] = useState('');
+  const [newConnectorDesc, setNewConnectorDesc] = useState('');
+  const [newConnectorLabel, setNewConnectorLabel] = useState('URL-адрес / Идентификатор');
+  const [newConnectorPlaceholder, setNewConnectorPlaceholder] = useState('');
+  const [tempFields, setTempFields] = useState<{ key: string; label: string; value: string; type: 'text' | 'password'; placeholder: string }[]>([]);
+  const [newFieldKey, setNewFieldKey] = useState('');
+  const [newFieldLabel, setNewFieldLabel] = useState('');
+  const [newFieldType, setNewFieldType] = useState<'text' | 'password'>('text');
+  const [newFieldPlaceholder, setNewFieldPlaceholder] = useState('');
+  const [connectorError, setConnectorError] = useState<string | null>(null);
+  const [connectorSuccess, setConnectorSuccess] = useState<string | null>(null);
+
   const cleanTrigger = (val: string) => {
     return val.toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 15);
+  };
+
+  const handleAddCustomConnector = () => {
+    setConnectorError(null);
+    setConnectorSuccess(null);
+
+    if (!newConnectorName.trim()) {
+      setConnectorError('Укажите имя коннектора');
+      return;
+    }
+    const cleanId = newConnectorId.toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 15);
+    if (!cleanId || cleanId.length < 3) {
+      setConnectorError('Идентификатор вызова (slash-команда) должен быть не менее 3 символов (латиница и цифры)');
+      return;
+    }
+
+    // Check for duplicate connector id
+    if (integrations.some(i => i.id === cleanId)) {
+      setConnectorError('Коннектор с такой slash-командой уже существует!');
+      return;
+    }
+
+    const newConnector: IntegrationConfig = {
+      id: cleanId,
+      name: newConnectorName,
+      description: newConnectorDesc || 'Пользовательский коннектор',
+      isEnabled: true,
+      value: '',
+      placeholder: newConnectorPlaceholder || 'Дополнительный параметр',
+      label: newConnectorLabel || 'Значение по умолчанию',
+      fields: tempFields
+    };
+
+    if (onUpdateIntegrations) {
+      onUpdateIntegrations([...integrations, newConnector]);
+    }
+
+    // Reset fields
+    setNewConnectorName('');
+    setNewConnectorId('');
+    setNewConnectorDesc('');
+    setNewConnectorLabel('URL-адрес / Идентификатор');
+    setNewConnectorPlaceholder('');
+    setTempFields([]);
+    setShowAddConnectorForm(false);
+    setConnectorSuccess(`Коннектор /${cleanId} успешно добавлен в систему!`);
+  };
+
+  const handleAddTempField = () => {
+    setConnectorError(null);
+    if (!newFieldKey.trim()) {
+      setConnectorError('Укажите ключ поля секрета (например, API_KEY)');
+      return;
+    }
+    const cleanKey = newFieldKey.toUpperCase().replace(/[^A-Z0-9_]/g, '');
+    if (tempFields.some(f => f.key === cleanKey)) {
+      setConnectorError('Поле с таким ключом уже добавлено!');
+      return;
+    }
+
+    setTempFields(prev => [...prev, {
+      key: cleanKey,
+      label: newFieldLabel || cleanKey,
+      value: '',
+      type: newFieldType,
+      placeholder: newFieldPlaceholder || `Введите значение для ${newFieldLabel || cleanKey}`
+    }]);
+
+    // reset temp field states
+    setNewFieldKey('');
+    setNewFieldLabel('');
+    setNewFieldType('text');
+    setNewFieldPlaceholder('');
+  };
+
+  const handleRemoveTempField = (keyToRemove: string) => {
+    setTempFields(prev => prev.filter(f => f.key !== keyToRemove));
   };
 
   const handleAutoTrain = async () => {
@@ -200,6 +294,69 @@ export default function SkillsHubModal({
 
   if (!isOpen) return null;
 
+  // Handle different hub styles
+  const isCyberpunk = hubStyle === 'cyberpunk';
+  const isGlass = hubStyle === 'glass';
+  const isBrutalist = hubStyle === 'brutalist';
+
+  let modalWrapperClass = "relative w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden z-[301] transition-all duration-300 bg-neutral-950 border border-neutral-805 rounded-2xl shadow-2xl text-neutral-200 font-sans";
+  let activeTabIndicatorColor = "bg-neutral-200";
+  let headerIconBgClass = "w-8 h-8 rounded-lg bg-white/[0.04] border border-white/[0.08] flex items-center justify-center shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)]";
+  let headerTitleColorClass = "text-white";
+  let tabSelectionClass = "px-5 pt-3 border-b border-white/[0.06] flex gap-4 bg-white/[0.005]";
+  let labelClass = "text-[10px] font-mono text-neutral-500 uppercase tracking-wider block mb-1.5";
+  let textareaClass = "w-full bg-white/[0.01] border border-white/[0.06] focus:border-white/[0.14] px-3 py-2 text-xs rounded-lg outline-none font-sans text-neutral-200 transition-all placeholder-neutral-600 focus:bg-white/[0.03] min-h-[140px] resize-none";
+  let inputClass = "w-full bg-white/[0.01] border border-white/[0.06] focus:border-white/[0.14] px-3 py-2 text-xs rounded-lg outline-none font-sans text-neutral-200 transition-all placeholder-neutral-600 focus:bg-white/[0.03]";
+  let createButtonClass = "px-4 py-2.5 bg-white text-black font-semibold text-xs rounded-lg hover:bg-neutral-200 transition-colors flex items-center gap-2 cursor-pointer shadow-sm";
+  let cardClass = "p-3.5 bg-white/[0.02] border border-white/[0.06] hover:border-white/[0.12] hover:bg-white/[0.04] transition-all rounded-xl flex flex-col justify-between group relative overflow-hidden";
+  let subHeaderClass = "text-[10px] font-mono tracking-widest uppercase text-neutral-400 flex items-center gap-1.5";
+  let bannerErrorClass = "p-3.5 bg-red-950/20 border border-red-900/50 rounded-xl flex items-start gap-2.5 text-xs text-red-350";
+  let bannerSuccessClass = "p-3.5 bg-emerald-950/20 border border-emerald-900/50 rounded-xl flex items-start gap-2.5 text-xs text-emerald-350";
+
+  if (isCyberpunk) {
+    modalWrapperClass = "relative w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden z-[301] transition-all duration-300 bg-[#0B0A0F] border border-neutral-800 shadow-[0_20px_50px_rgba(0,0,0,0.6)] rounded-2xl text-neutral-100 font-sans";
+    activeTabIndicatorColor = "bg-neutral-100 shadow-[0_0_12px_rgba(255,255,255,0.4)]";
+    headerIconBgClass = "w-8 h-8 rounded-lg bg-neutral-900 border border-neutral-800 flex items-center justify-center";
+    headerTitleColorClass = "text-transparent bg-clip-text bg-gradient-to-r from-neutral-200 via-neutral-100 to-neutral-400 font-bold";
+    tabSelectionClass = "px-5 pt-3 border-b border-neutral-850 flex gap-4 bg-neutral-950/20";
+    labelClass = "text-[10px] font-mono text-neutral-400 uppercase tracking-widest block mb-1.5";
+    textareaClass = "w-full bg-[#121118]/80 border border-neutral-800 focus:border-neutral-700 px-3 py-2 text-xs rounded-lg outline-none font-sans text-neutral-150 transition-all placeholder-neutral-600 focus:bg-[#16151E] min-h-[140px] resize-none";
+    inputClass = "w-full bg-[#121118]/80 border border-neutral-800 focus:border-neutral-700 px-3 py-2 text-xs rounded-lg outline-none font-sans text-neutral-150 transition-all placeholder-neutral-600 focus:bg-[#16151E]";
+    createButtonClass = "px-4 py-2.5 bg-neutral-100 hover:bg-white text-black font-bold text-xs rounded-lg border border-neutral-850 transition-all flex items-center gap-2 cursor-pointer shadow-sm";
+    cardClass = "p-3.5 bg-[#121118]/60 border border-neutral-800 hover:border-neutral-700 hover:bg-[#16151E]/70 transition-all rounded-xl flex flex-col justify-between group relative overflow-hidden shadow-[0_2px_10px_rgba(0,0,0,0.4)]";
+    subHeaderClass = "text-[10px] font-mono tracking-widest uppercase text-neutral-400 flex items-center gap-1.5";
+    bannerErrorClass = "p-3.5 bg-red-950/15 border border-red-900/35 rounded-xl flex items-start gap-2.5 text-xs text-red-300 font-sans";
+    bannerSuccessClass = "p-3.5 bg-emerald-950/15 border border-emerald-900/35 rounded-xl flex items-start gap-2.5 text-xs text-emerald-300 font-sans";
+  } else if (isGlass) {
+    modalWrapperClass += " bg-white/[0.02] border border-white/20 rounded-3xl shadow-[0_25px_60px_rgba(255,255,255,0.02)] backdrop-blur-3xl text-neutral-200 font-sans";
+    activeTabIndicatorColor = "bg-white/80";
+    headerIconBgClass = "w-8 h-8 rounded-xl bg-white/[0.05] border border-white/20 flex items-center justify-center shadow-[inset_0_1px_1px_rgba(255,255,255,0.1)]";
+    headerTitleColorClass = "text-white font-medium";
+    tabSelectionClass = "px-5 pt-3 border-b border-white/10 flex gap-4 bg-white/[0.01]";
+    labelClass = "text-[10px] font-mono text-white/50 uppercase tracking-wider block mb-1.5";
+    textareaClass = "w-full bg-white/[0.02] border border-white/10 focus:border-white/25 px-3 py-2 text-xs rounded-xl outline-none font-sans text-neutral-200 transition-all placeholder-neutral-500 focus:bg-white/[0.04] min-h-[140px] resize-none";
+    inputClass = "w-full bg-white/[0.02] border border-white/10 focus:border-white/25 px-3 py-2 text-xs rounded-xl outline-none font-sans text-neutral-200 transition-all placeholder-neutral-500 focus:bg-white/[0.04]";
+    createButtonClass = "px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white border border-white/20 font-medium text-xs rounded-xl transition-all flex items-center gap-2 cursor-pointer";
+    cardClass = "p-3.5 bg-white/[0.01] border border-white/10 hover:border-white/20 hover:bg-white/[0.02] transition-all rounded-xl flex flex-col justify-between group relative overflow-hidden backdrop-blur-md";
+    subHeaderClass = "text-[10px] font-mono tracking-widest uppercase text-white/60 flex items-center gap-1.5";
+    bannerErrorClass = "p-3.5 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-start gap-2.5 text-xs text-red-300";
+    bannerSuccessClass = "p-3.5 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl flex items-start gap-2.5 text-xs text-emerald-300";
+  } else if (isBrutalist) {
+    modalWrapperClass += " bg-[#050505] border-2 border-neutral-100 rounded-none shadow-[10px_10px_0px_#FFF] font-mono text-neutral-100";
+    activeTabIndicatorColor = "bg-neutral-100";
+    headerIconBgClass = "w-8 h-8 rounded-none bg-neutral-900 border-2 border-neutral-100 flex items-center justify-center";
+    headerTitleColorClass = "text-neutral-100 font-black uppercase";
+    tabSelectionClass = "px-5 pt-3 border-b-2 border-neutral-100 flex gap-4 bg-neutral-950";
+    labelClass = "text-[10px] font-mono text-neutral-100 font-bold uppercase block mb-1.5";
+    textareaClass = "w-full bg-black border-2 border-neutral-700 focus:border-neutral-100 px-3 py-2 text-xs rounded-none outline-none font-mono text-neutral-250 transition-all placeholder-neutral-700 min-h-[140px] resize-none";
+    inputClass = "w-full bg-black border-2 border-neutral-700 focus:border-neutral-100 px-3 py-2 text-xs rounded-none outline-none font-mono text-neutral-250 transition-all placeholder-neutral-700";
+    createButtonClass = "px-4 py-2.5 bg-neutral-100 text-black font-black text-xs rounded-none border-2 border-neutral-100 hover:bg-black hover:text-white transition-all flex items-center gap-2 cursor-pointer shadow-[3px_3px_0px_#AAA]";
+    cardClass = "p-3.5 bg-black border-2 border-neutral-800 hover:border-neutral-100 hover:bg-neutral-950 transition-all rounded-none flex flex-col justify-between group relative overflow-hidden";
+    subHeaderClass = "text-[10px] font-mono tracking-widest uppercase text-neutral-300 font-bold flex items-center gap-1.5";
+    bannerErrorClass = "p-3.5 bg-black border-2 border-red-500 rounded-none flex items-start gap-2.5 text-xs text-red-400 font-mono";
+    bannerSuccessClass = "p-3.5 bg-black border-2 border-emerald-500 rounded-none flex items-start gap-2.5 text-xs text-emerald-400 font-mono";
+  }
+
   return (
     <AnimatePresence>
       <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
@@ -217,16 +374,16 @@ export default function SkillsHubModal({
           initial={{ opacity: 0, scale: 0.95, y: 15 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 15 }}
-          className="relative w-full max-w-2xl max-h-[85vh] flex flex-col bg-gradient-to-b from-neutral-900/75 to-neutral-950/85 border border-white/10 rounded-2xl shadow-[0_25px_60px_rgba(0,0,0,0.85)] overflow-hidden z-[301] backdrop-blur-2xl"
+          className={modalWrapperClass}
         >
           {/* Header */}
           <div className="p-5 border-b border-white/[0.06] flex items-center justify-between bg-white/[0.01]">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-white/[0.04] border border-white/[0.08] flex items-center justify-center shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)]">
+              <div className={headerIconBgClass}>
                 <Command size={14} className="text-neutral-300" />
               </div>
               <div>
-                <h2 className="text-sm font-semibold text-white tracking-wide">YorN Skills Hub</h2>
+                <h2 className={`text-sm font-semibold tracking-wide ${headerTitleColorClass}`}>YorN Skills Hub</h2>
                 <p className="text-[10px] font-mono text-neutral-500">Инструменты контекстного программирования</p>
               </div>
             </div>
@@ -240,40 +397,40 @@ export default function SkillsHubModal({
           </div>
 
           {/* Tab Selection */}
-          <div className="px-5 pt-3 border-b border-white/[0.06] flex gap-4 bg-white/[0.005]">
+          <div className={tabSelectionClass}>
             <button 
               onClick={() => { setActiveTab('hub'); setTrainingError(null); setSuccessMessage(null); }}
               className={`pb-3 text-xs font-semibold relative transition-colors ${
-                activeTab === 'hub' ? 'text-white' : 'text-neutral-500 hover:text-neutral-300'
+                activeTab === 'hub' ? 'text-white' : 'text-neutral-500 hover:text-neutral-305'
               }`}
             >
               <span>Все навыки ({systemSkills.length + customSkills.length})</span>
               {activeTab === 'hub' && (
-                <motion.div layoutId="skillsActiveTab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-neutral-200" />
+                <motion.div layoutId="skillsActiveTab" className={`absolute bottom-0 left-0 right-0 h-0.5 ${activeTabIndicatorColor}`} />
               )}
             </button>
             <button 
               onClick={() => { setActiveTab('create'); setTrainingError(null); setSuccessMessage(null); }}
               className={`pb-3 text-xs font-semibold relative transition-colors flex items-center gap-1.5 ${
-                activeTab === 'create' ? 'text-white' : 'text-neutral-500 hover:text-neutral-300'
+                activeTab === 'create' ? 'text-white' : 'text-neutral-500 hover:text-neutral-305'
               }`}
             >
               <Plus size={12} className={activeTab === 'create' ? 'text-white' : ''} />
               <span>Создать и обучить</span>
               {activeTab === 'create' && (
-                <motion.div layoutId="skillsActiveTab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-neutral-200" />
+                <motion.div layoutId="skillsActiveTab" className={`absolute bottom-0 left-0 right-0 h-0.5 ${activeTabIndicatorColor}`} />
               )}
             </button>
             <button 
               onClick={() => { setActiveTab('integrations'); setTrainingError(null); setSuccessMessage(null); }}
               className={`pb-3 text-xs font-semibold relative transition-colors flex items-center gap-1.5 ${
-                activeTab === 'integrations' ? 'text-white' : 'text-neutral-500 hover:text-neutral-300'
+                activeTab === 'integrations' ? 'text-white' : 'text-neutral-500 hover:text-neutral-305'
               }`}
             >
-              <Globe size={11} className={activeTab === 'integrations' ? 'text-white' : ''} />
-              <span>Интеграции API</span>
+              <Link size={11} className={activeTab === 'integrations' ? 'text-white' : ''} />
+              <span>ToolsConnector</span>
               {activeTab === 'integrations' && (
-                <motion.div layoutId="skillsActiveTab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-neutral-200" />
+                <motion.div layoutId="skillsActiveTab" className={`absolute bottom-0 left-0 right-0 h-0.5 ${activeTabIndicatorColor}`} />
               )}
             </button>
           </div>
@@ -283,20 +440,20 @@ export default function SkillsHubModal({
             
             {/* Feedback Banners */}
             {trainingError && (
-              <div className="p-3.5 bg-red-950/20 border border-red-900/50 rounded-xl flex items-start gap-2.5 text-xs text-red-300">
+              <div className={bannerErrorClass}>
                 <AlertCircle size={15} className="mt-0.5 shrink-0" />
                 <span>{trainingError}</span>
               </div>
             )}
 
             {successMessage && (
-              <div className="p-3.5 bg-emerald-950/20 border border-emerald-900/50 rounded-xl flex items-start gap-2.5 text-xs text-emerald-300">
+              <div className={bannerSuccessClass}>
                 <Check size={15} className="mt-0.5 shrink-0" />
                 <span>{successMessage}</span>
               </div>
             )}
 
-            {activeTab === 'hub' ? (
+            {activeTab === 'hub' && (
               <div className="space-y-5">
                 <p className="text-[11px] leading-relaxed text-neutral-400">
                   Скиллы позволяют мгновенно настроить YorN AI под конкретную задачу с помощью триггеров. 
@@ -308,13 +465,13 @@ export default function SkillsHubModal({
                   const mySkills = customSkills.filter(s => s.userId === userId || userId === 'guest-local-user');
                   return mySkills.length > 0 && (
                     <div className="space-y-2">
-                      <h3 className="text-[10px] font-mono tracking-widest uppercase text-neutral-400 flex items-center gap-1.5">
+                      <h3 className={subHeaderClass}>
                         <Lock size={10} className="text-neutral-500" />
                         <span>Мои личные навыки ({mySkills.length})</span>
                       </h3>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {mySkills.map(skill => (
-                          <div key={skill.id} className="p-3.5 bg-white/[0.02] border border-white/[0.06] hover:border-white/[0.12] hover:bg-white/[0.04] transition-all rounded-xl flex flex-col justify-between group relative overflow-hidden">
+                          <div key={skill.id} className={cardClass}>
                             {skill.isPublic && (
                               <div className="absolute top-2 right-2 flex items-center gap-1 px-1.5 py-0.5 bg-white/[0.04] border border-white/[0.08] rounded font-mono text-[8px] text-neutral-400 select-none">
                                 <Globe size={8} /> CLOUD
@@ -369,13 +526,13 @@ export default function SkillsHubModal({
                   const cloudSkills = customSkills.filter(s => s.userId !== userId && userId !== 'guest-local-user' && s.isPublic);
                   return cloudSkills.length > 0 && (
                     <div className="space-y-2 pt-2">
-                      <h3 className="text-[10px] font-mono tracking-widest uppercase text-neutral-400 flex items-center gap-1.5 select-none">
+                      <h3 className={subHeaderClass}>
                         <Cloud size={11} className="text-neutral-500" />
                         <span>Cloud Hub • Навыки сообщества ({cloudSkills.length})</span>
                       </h3>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {cloudSkills.map(skill => (
-                          <div key={skill.id} className="p-3.5 bg-white/[0.02] border border-white/[0.06] hover:border-white/[0.12] hover:bg-white/[0.04] transition-all rounded-xl flex flex-col justify-between relative group overflow-hidden">
+                          <div key={skill.id} className={cardClass}>
                             <div className="absolute top-0 right-0 w-24 h-24 bg-white/[0.01] rounded-full blur-2xl pointer-events-none" />
                             <div>
                               <div className="flex items-center justify-between">
@@ -416,10 +573,10 @@ export default function SkillsHubModal({
 
                 {/* Predefined Systems Skills */}
                 <div className="space-y-2 pt-2">
-                  <h3 className="text-[10px] font-mono tracking-widest uppercase text-neutral-500">Встроенные системные навыки</h3>
+                  <h3 className={subHeaderClass}>Встроенные системные навыки</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {systemSkills.map(skill => (
-                      <div key={skill.id} className="p-3.5 bg-white/[0.015] border border-white/[0.05] hover:border-white/[0.1] transition-all rounded-xl flex flex-col justify-between">
+                      <div key={skill.id} className={cardClass}>
                         <div>
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2.5 min-w-0 flex-1">
@@ -453,7 +610,9 @@ export default function SkillsHubModal({
                 </div>
 
               </div>
-            ) : (
+            )}
+
+            {activeTab === 'create' && (
               <div className="space-y-6">
                 
                 {/* Auto-training Sub-section */}
@@ -609,12 +768,43 @@ export default function SkillsHubModal({
             )}
 
             {activeTab === 'integrations' && (
-              <div className="space-y-4">
-                <p className="text-[11px] leading-relaxed text-neutral-400">
-                  Поддерживайте актуальность ваших задач с помощью живых интеграций API. Вы можете включить автоматическую обработку выбранных сервисов по умолчанию в фоновом режиме или вызывать их прямо через slash-команды вида <code className="px-1.5 py-0.5 bg-white/[0.04] text-neutral-200 font-mono rounded border border-white/[0.06]">/weather город</code>, <code className="px-1.5 py-0.5 bg-white/[0.04] text-neutral-200 font-mono rounded border border-white/[0.06]">/crypto coin</code> и др. в любом запросе!
-                </p>
+              <div className="space-y-4 animate-[fadeIn_0.2s_ease-out]">
+                {/* ToolsConnector Hero Showcase Card */}
+                <div className="p-4 bg-neutral-900/60 border border-neutral-800 rounded-2xl relative overflow-hidden space-y-3.5 shadow-md">
+                  <div className="absolute right-4 top-4 opacity-[0.04] select-none pointer-events-none">
+                    <Link size={72} className="text-neutral-450" />
+                  </div>
+                  
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-0.5 rounded-full text-[9px] font-mono font-bold uppercase tracking-wider bg-neutral-800 border border-neutral-700 text-neutral-300">Active</span>
+                    <span className="text-[10px] uppercase tracking-[0.2em] font-semibold text-neutral-400 font-mono">Базовые Системные Коннекторы</span>
+                  </div>
 
-                <div className="space-y-3">
+                  <div className="space-y-2">
+                    <h3 className="text-sm font-bold text-white tracking-tight">🔗 ToolsConnector</h3>
+                    <p className="text-xs font-semibold text-neutral-350">
+                      Подключите свои базы данных и сервисы напрямую в контекст ИИ
+                    </p>
+                    <p className="text-[11px] text-neutral-400 leading-relaxed max-w-[95%]">
+                      Активируйте встроенные коннекторы для работы со своими данными из Supabase, GitHub, Vercel и Firebase. ИИ сможет автоматически получать контекст данных при написании запросов.
+                    </p>
+                  </div>
+
+                  <div className="pt-1.5 border-t border-neutral-800/60 flex flex-wrap items-center gap-2 text-neutral-500">
+                    <span className="text-[10px] font-mono">Вызов в чате:</span>
+                    <code className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-white/[0.03] border border-white/[0.06] text-neutral-300">/supabase</code>
+                    <code className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-white/[0.03] border border-white/[0.06] text-neutral-300">/github</code>
+                  </div>
+                </div>
+
+                {/* Header Action Bar */}
+                <div className="flex items-center justify-between pt-2">
+                  <span className="text-[10px] font-mono tracking-widest uppercase text-neutral-400 flex items-center gap-1.5">
+                    ⚙️ Зарегистрированные Подключения
+                  </span>
+                </div>
+
+                <div className="space-y-3 pb-6">
                   {integrations.map((item) => (
                     <div 
                       key={item.id} 
@@ -667,20 +857,48 @@ export default function SkillsHubModal({
 
                       {/* Config Input parameters structure */}
                       {item.isEnabled && (
-                        <div className="mt-3.5 pt-3 border-t border-white/[0.05] flex flex-col gap-1.5">
-                          <span className="text-[9px] font-mono text-neutral-500 uppercase tracking-wider">{item.label}</span>
-                          <input
-                            type="text"
-                            value={item.value}
-                            placeholder={item.placeholder}
-                            onChange={(e) => {
-                              if (onUpdateIntegrations) {
-                                const copy = integrations.map(i => i.id === item.id ? { ...i, value: e.target.value } : i);
-                                onUpdateIntegrations(copy);
-                              }
-                            }}
-                            className="w-full bg-white/[0.02] border border-white/[0.08] focus:border-white/[0.18] px-3 py-2 text-xs rounded-lg outline-none font-sans text-neutral-200 transition-all placeholder-neutral-600 focus:bg-white/[0.04]"
-                          />
+                        <div className="mt-3.5 pt-3 border-t border-white/[0.05] flex flex-col gap-3">
+                          {/* Primary Variable Entry */}
+                          <div className="flex flex-col gap-1.5">
+                            <span className="text-[9px] font-mono text-neutral-500 uppercase tracking-wider">{item.label}</span>
+                            <input
+                              type="text"
+                              value={item.value}
+                              placeholder={item.placeholder}
+                              onChange={(e) => {
+                                if (onUpdateIntegrations) {
+                                  const copy = integrations.map(i => i.id === item.id ? { ...i, value: e.target.value } : i);
+                                  onUpdateIntegrations(copy);
+                                }
+                              }}
+                              className="w-full bg-white/[0.01] border border-white/[0.06] focus:border-white/[0.14] px-3 py-2 text-xs rounded-lg outline-none font-sans text-neutral-200 transition-all placeholder-neutral-600 focus:bg-white/[0.03]"
+                            />
+                          </div>
+
+                          {/* Nested Credentials Fields */}
+                          {item.fields && item.fields.map((fld) => (
+                            <div key={fld.key} className="flex flex-col gap-1.5">
+                              <span className="text-[9px] font-mono text-neutral-500 uppercase tracking-wider">{fld.label}</span>
+                              <input
+                                type={fld.type}
+                                value={fld.value}
+                                placeholder={fld.placeholder}
+                                onChange={(e) => {
+                                  if (onUpdateIntegrations) {
+                                    const copy = integrations.map(i => {
+                                      if (i.id === item.id) {
+                                        const newFields = i.fields.map(f => f.key === fld.key ? { ...f, value: e.target.value } : f);
+                                        return { ...i, fields: newFields };
+                                      }
+                                      return i;
+                                    });
+                                    onUpdateIntegrations(copy);
+                                  }
+                                }}
+                                className="w-full bg-white/[0.01] border border-white/[0.06] focus:border-white/[0.14] px-3 py-2 text-xs rounded-lg outline-none font-sans text-neutral-200 transition-all placeholder-neutral-600 focus:bg-white/[0.03]"
+                              />
+                            </div>
+                          ))}
                         </div>
                       )}
                     </div>

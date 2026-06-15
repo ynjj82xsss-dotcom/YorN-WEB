@@ -92,6 +92,9 @@ export async function loadUserSessions(userId: string): Promise<ChatSession[]> {
 
     for (const d of querySnapshot.docs) {
       const data = d.data();
+      if (data.isDeleted === true) {
+        continue;
+      }
       const sId = d.id;
       
       // Load subcollection messages
@@ -200,7 +203,7 @@ export async function updateFirestoreSessionPin(sessionId: string, isPinned: boo
   }
 }
 
-// Delete a session and all its messages
+// Soft-delete a session (marks as deleted but retains data on the server)
 export async function deleteFirestoreSession(sessionId: string) {
   const local = localStorage.getItem('yorn_local_sessions');
   if (local) {
@@ -212,23 +215,16 @@ export async function deleteFirestoreSession(sessionId: string) {
       return;
     }
   }
-  // 1. Delete all messages from subcollection
-  const messagesPath = `sessions/${sessionId}/messages`;
-  try {
-    const mSnapshot = await getDocs(collection(db, messagesPath));
-    for (const mdoc of mSnapshot.docs) {
-      await deleteDoc(doc(db, messagesPath, mdoc.id));
-    }
-  } catch (err) {
-    handleFirestoreError(err, OperationType.DELETE, messagesPath);
-  }
 
-  // 2. Delete parent session
+  // We do not delete messages or the session document. We flag it for administrative/compliance retention.
   const path = `sessions/${sessionId}`;
   try {
-    await deleteDoc(doc(db, 'sessions', sessionId));
+    await updateDoc(doc(db, 'sessions', sessionId), {
+      isDeleted: true,
+      deletedAt: new Date().toISOString()
+    });
   } catch (error) {
-    handleFirestoreError(error, OperationType.DELETE, path);
+    handleFirestoreError(error, OperationType.UPDATE, path);
   }
 }
 
@@ -256,6 +252,7 @@ export async function saveFirestoreMessage(sessionId: string, message: Message) 
       role: message.role,
       content: message.content,
       timestamp: message.timestamp,
+      userId: auth.currentUser?.uid || 'anonymous',
     });
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
@@ -504,6 +501,299 @@ export async function deleteUserSkill(userId: string, skillId: string) {
     }
   } catch (error) {
     console.error("deleteUserSkill failed:", error);
+  }
+}
+
+// ----------------------------------------------------
+// Compliance Laws & Security Trigger Auditing
+// ----------------------------------------------------
+
+const DANGEROUS_TRIGGERS = [
+  'бомба', 'взрывчатк', 'тротил', 'тринитротолуол', 'взрывное устройство', 'самодельное оружие',
+  'суицид', 'самоубийств', 'порезы', 'убить себя', 'как умереть', 'свести счеты с жизнью',
+  'героин', 'кокаин', 'амфетамин', 'метамфетамин', 'спайс', 'наркотик', 'наркоти', 'веществ', 'порошок', 'синтез наркотик', 'купить наркотик',
+  'взлом', 'взломать', 'ddos', 'ддос', 'cyber attack', 'кибератака', 'внедрение sql', 'sql injection', 'эксплоит', 'exploit', 'бэкдор',
+  'теракт', 'терроризм', 'убить человека', 'массовое убийство', 'опасный запрос', 'тест безопасности', 'cheat', 'crack',
+  'хочу умереть', 'хочу уйти из жизни', 'не хочу жить', 'покончить с собой', 'вскрыть вены', 'повеситьс', 'отравитьс', 'спрыгнуть с', 'самоповреждени', 'селфхарм'
+];
+
+export function isSuicideQuery(content: string): boolean {
+  const norm = content.toLowerCase();
+  
+  // 1. Direct explicit keywords
+  const suicideKeywords = [
+    'суицид', 'самоубийств', 'порезы', 'убить себя', 'как умереть', 'свести счеты с жизнью', 
+    'хочу умереть', 'умереть хочу', 'хочу уйти из жизни', 'уйти из жизни хочу', 'жить не хочу',
+    'селфхарм', 'самоповреждени', 'вскрыть вены',
+    'повеситьс', 'отравитьс', 'спрыгнуть с', 'таблетки чтобы умереть', 'покончить с собой',
+    'покончить жизнь', 'не хочу жить', 'незачем жить', 'вскрыл вены', 'наглотаться таблеток',
+    'прыгнуть из окна', 'прыгнуть с моста', 'смерть лучше чем жизнь', 'хочу погибнуть', 'погибнуть хочу'
+  ];
+
+  if (suicideKeywords.some(kw => norm.includes(kw))) {
+    return true;
+  }
+
+  // 2. Combination check: e.g. "хочу"/"хочеться" + "умереть"/"покончить" in any order
+  const wantWords = ['хочу', 'хочет', 'желаю', 'планирую', 'думаю', 'решил', 'собираюсь', 'не хочу', 'как мне', 'как'];
+  const deathWords = ['умереть', 'сдохнуть', 'покончить', 'погибнуть', 'уйти из жизни', 'убивать себя', 'убить себя'];
+  
+  const hasWant = wantWords.some(w => norm.includes(w));
+  const hasDeath = deathWords.some(d => norm.includes(d));
+  if (hasWant && hasDeath) {
+    return true;
+  }
+
+  // 3. Special mental crisis combinations
+  if (norm.includes('желание') && norm.includes('умереть')) {
+    return true;
+  }
+  if (norm.includes('мысли') && (norm.includes('смерт') || norm.includes('умереть') || norm.includes('суицид'))) {
+    return true;
+  }
+
+  return false;
+}
+
+export function isDrugQuery(content: string): boolean {
+  const norm = content.toLowerCase();
+  const drugKeywords = [
+    'героин', 'кокаин', 'амфетамин', 'метамфетамин', 'спайс', 'соли', 'мефедрон', 'лсд', 
+    'экстази', 'наркотик', 'наркоти', 'купить фен', 'закладка', 'торчать', 'закинуться',
+    'купить марихуан', 'синтез наркотик', 'купить наркотик', 'порошок', 'наркоман', 'вещест',
+    'купить меф', 'внутривенно', 'срезать дозу', 'зависимость', 'передоз'
+  ];
+  return drugKeywords.some(kw => norm.includes(kw));
+}
+
+export function isTerrorismQuery(content: string): boolean {
+  const norm = content.toLowerCase();
+  const terrorismKeywords = [
+    'бомба', 'взрывчатк', 'тротил', 'тринитротолуол', 'взрывное устройство', 'самодельное оружие',
+    'теракт', 'терроризм', 'убить человека', 'массовое убийство', 'игил', 'взорвать', 
+    'коктейль молотова', 'подложить бомбу', 'черный порох', 'киллер', 'заказать убийство', 
+    'стрельба в школе', 'колумбайн', 'взорвать мост', 'подрыв здания'
+  ];
+  return terrorismKeywords.some(kw => norm.includes(kw));
+}
+
+export function detectDangerousKeywords(content: string): string[] {
+  const normalized = content.toLowerCase();
+  const matched: string[] = [];
+  
+  let dynamicTriggers = [...DANGEROUS_TRIGGERS];
+  try {
+    const customStr = localStorage.getItem('yorn_custom_security_triggers');
+    if (customStr) {
+      const parsed = JSON.parse(customStr);
+      if (Array.isArray(parsed)) {
+        const cleanCustom = parsed.map(t => String(t).trim().toLowerCase()).filter(Boolean);
+        dynamicTriggers = [...dynamicTriggers, ...cleanCustom];
+      }
+    }
+  } catch (e) {
+    console.error("Failed to parse custom security triggers:", e);
+  }
+
+  dynamicTriggers.forEach(trigger => {
+    if (normalized.includes(trigger)) {
+      if (!matched.includes(trigger)) {
+        matched.push(trigger);
+      }
+    }
+  });
+  return matched;
+}
+
+export async function logDangerousRequest(sessionId: string, content: string, matched: string[]) {
+  const currentUser = auth.currentUser;
+  const logId = `abuse_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+  const payload = {
+    id: logId,
+    timestamp: new Date().toISOString(),
+    sessionId,
+    messageContent: content,
+    matchedKeywords: matched,
+    user: currentUser ? {
+      uid: currentUser.uid,
+      email: currentUser.email || 'no-email',
+      displayName: currentUser.displayName || 'anonymous',
+      providerId: currentUser.providerData?.[0]?.providerId || 'password_or_other'
+    } : {
+      uid: 'guest-local-user',
+      email: 'guest@local.device',
+      displayName: 'Guest Local User',
+      providerId: 'local'
+    }
+  };
+
+  // 1. Firebase Firestore logging
+  try {
+    // Write locally for debug compliance logs
+    const localLogs = localStorage.getItem('yorn_abuse_audit_logs');
+    const logsList = localLogs ? JSON.parse(localLogs) : [];
+    logsList.push(payload);
+    localStorage.setItem('yorn_abuse_audit_logs', JSON.stringify(logsList));
+
+    // Save directly to compliance audit base
+    await setDoc(doc(db, 'abuse_logs', logId), payload);
+  } catch (error) {
+    console.error("Compliance logging failed in Firestore:", error);
+  }
+
+  // 2. Supabase Logging
+  try {
+    // Fetch credentials either from environment variables or LocalStorage integrations list
+    let supabaseUrl = ((import.meta as any).env.VITE_SUPABASE_URL || '').trim();
+    let supabaseKey = ((import.meta as any).env.VITE_SUPABASE_ANON_KEY || '').trim();
+    const supabaseTable = ((import.meta as any).env.VITE_SUPABASE_TABLE || 'abuse_logs').trim();
+
+    if (!supabaseUrl || !supabaseKey) {
+      const savedIntegrations = localStorage.getItem('yorn_integrations');
+      if (savedIntegrations) {
+        const parsed = JSON.parse(savedIntegrations);
+        const supabaseInt = parsed.find((i: any) => i.id === 'supabase');
+        if (supabaseInt) {
+          const urlField = supabaseInt.fields?.find((f: any) => f.key === 'SUPABASE_URL');
+          const keyField = supabaseInt.fields?.find((f: any) => f.key === 'SUPABASE_ANON_KEY');
+          if (urlField?.value && keyField?.value) {
+            supabaseUrl = urlField.value.trim();
+            supabaseKey = keyField.value.trim();
+          }
+        }
+      }
+    }
+
+    // Default system fallback to your direct Supabase database configuration
+    if (!supabaseUrl) {
+      supabaseUrl = 'https://rjmehilrviykuwjanmnm.supabase.co';
+    }
+    if (!supabaseKey) {
+      supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJqbWVoaWxydml5a3V3amFubW5tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE0NjI5OTYsImV4cCI6MjA5NzAzODk5Nn0.n3Yd1oimjHy66UGK9aAHA7Hyxs161J3Bd71KfTKZ5wM';
+    }
+
+    if (supabaseUrl && supabaseKey) {
+      let resolvedUrl = supabaseUrl;
+      if (!resolvedUrl.startsWith('http://') && !resolvedUrl.startsWith('https://')) {
+        resolvedUrl = `https://${resolvedUrl}`;
+      }
+      resolvedUrl = resolvedUrl.replace(/\/+$/, '');
+
+      const supabasePayload = {
+        id: logId,
+        timestamp: payload.timestamp,
+        session_id: payload.sessionId,
+        message_content: payload.messageContent,
+        matched_keywords: payload.matchedKeywords,
+        user_uid: payload.user.uid,
+        user_email: payload.user.email,
+        user_display_name: payload.user.displayName,
+        provider_id: payload.user.providerId
+      };
+
+      const res = await fetch(`${resolvedUrl}/rest/v1/${supabaseTable}`, {
+        method: 'POST',
+        headers: {
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${supabaseKey}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal'
+        },
+        body: JSON.stringify(supabasePayload)
+      });
+
+      if (!res.ok) {
+        const errTxt = await res.text().catch(() => '');
+        console.error(`Supabase insert failed. Status: ${res.status}. Body:`, errTxt);
+      } else {
+        console.log("Successfully recorded dangerous security log in Supabase database!");
+      }
+    }
+  } catch (err) {
+    console.error("Supabase audit logging crashed:", err);
+  }
+}
+
+export async function fetchAbuseLogs() {
+  // Try to load logs from Supabase first if configured, otherwise fall back to Firestore
+  try {
+    let supabaseUrl = ((import.meta as any).env.VITE_SUPABASE_URL || '').trim();
+    let supabaseKey = ((import.meta as any).env.VITE_SUPABASE_ANON_KEY || '').trim();
+    const supabaseTable = ((import.meta as any).env.VITE_SUPABASE_TABLE || 'abuse_logs').trim();
+
+    if (!supabaseUrl || !supabaseKey) {
+      const savedIntegrations = localStorage.getItem('yorn_integrations');
+      if (savedIntegrations) {
+        const parsed = JSON.parse(savedIntegrations);
+        const supabaseInt = parsed.find((i: any) => i.id === 'supabase');
+        if (supabaseInt) {
+          const urlField = supabaseInt.fields?.find((f: any) => f.key === 'SUPABASE_URL');
+          const keyField = supabaseInt.fields?.find((f: any) => f.key === 'SUPABASE_ANON_KEY');
+          if (urlField?.value && keyField?.value) {
+            supabaseUrl = urlField.value.trim();
+            supabaseKey = keyField.value.trim();
+          }
+        }
+      }
+    }
+
+    // Default system fallback to your direct Supabase database configuration
+    if (!supabaseUrl) {
+      supabaseUrl = 'https://rjmehilrviykuwjanmnm.supabase.co';
+    }
+    if (!supabaseKey) {
+      supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJqbWVoaWxydml5a3V3amFubW5tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE0NjI5OTYsImV4cCI6MjA5NzAzODk5Nn0.n3Yd1oimjHy66UGK9aAHA7Hyxs161J3Bd71KfTKZ5wM';
+    }
+
+    if (supabaseUrl && supabaseKey) {
+      let resolvedUrl = supabaseUrl;
+      if (!resolvedUrl.startsWith('http://') && !resolvedUrl.startsWith('https://')) {
+        resolvedUrl = `https://${resolvedUrl}`;
+      }
+      resolvedUrl = resolvedUrl.replace(/\/+$/, '');
+
+      const res = await fetch(`${resolvedUrl}/rest/v1/${supabaseTable}?order=timestamp.desc`, {
+        headers: {
+          'apikey': supabaseKey,
+          'Authorization': `Bearer ${supabaseKey}`,
+          'Accept': 'application/json'
+        }
+      });
+
+      if (res.ok) {
+        const rows = await res.json();
+        return rows.map((r: any) => ({
+          id: r.id,
+          timestamp: r.timestamp || new Date().toISOString(),
+          sessionId: r.session_id || '',
+          messageContent: r.message_content || '',
+          matchedKeywords: r.matched_keywords || [],
+          user: {
+            uid: r.user_uid || 'guest-local-user',
+            email: r.user_email || 'guest@local.device',
+            displayName: r.user_display_name || 'Guest Local User',
+            providerId: r.provider_id || 'local'
+          }
+        }));
+      }
+    }
+  } catch (err) {
+    console.error("Failed to read logs from Supabase, loading from Firestore:", err);
+  }
+
+  const abusePath = 'abuse_logs';
+  try {
+    const querySnapshot = await getDocs(collection(db, abusePath));
+    const logs: any[] = [];
+    querySnapshot.forEach(d => {
+      logs.push(d.data());
+    });
+    // Sort descending by timestamp
+    logs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    return logs;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.GET, abusePath);
+    return [];
   }
 }
 

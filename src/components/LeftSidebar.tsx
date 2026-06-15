@@ -28,7 +28,6 @@ interface LeftSidebarProps {
   onOpenProfile: () => void;
   user: FirebaseUser | null;
   onLogin: () => void;
-  onLogout: () => void;
 }
 
 export default function LeftSidebar({
@@ -44,12 +43,10 @@ export default function LeftSidebar({
   onOpenProfile,
   user,
   onLogin,
-  onLogout,
 }: LeftSidebarProps) {
   const [menuSessionId, setMenuSessionId] = useState<string | null>(null);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
-  const [confirmLogout, setConfirmLogout] = useState(false);
 
   useEffect(() => {
     const closeMenu = () => setMenuSessionId(null);
@@ -290,62 +287,31 @@ export default function LeftSidebar({
 
           <div className="mt-6 pt-6 border-t border-[#1A1A1A] flex flex-col gap-2">
             {user ? (
-              <div className="flex flex-col gap-2">
-                <button
-                  onClick={onOpenProfile}
-                  className="flex items-center gap-3 w-full py-3 px-2 rounded-lg text-left hover:bg-[#151515] transition-all"
-                >
-                  <div className="w-8 h-8 rounded bg-[#111] overflow-hidden border border-[#222] flex items-center justify-center">
-                    {user.photoURL ? (
-                      <img
-                        src={user.photoURL}
-                        alt={user.displayName || "Profile"}
-                        className="w-full h-full object-cover"
-                        referrerPolicy="no-referrer"
-                      />
-                    ) : (
-                      <User size={14} className="text-[#888]" />
-                    )}
-                  </div>
-                  <div className="flex flex-col flex-1 overflow-hidden">
-                    <span className="text-[11px] font-medium text-[#E0E0E0] truncate">
-                      {user.displayName || "Пользователь"}
-                    </span>
-                    <span className="text-[9px] text-[#555] truncate">
-                      {user.email}
-                    </span>
-                  </div>
-                </button>
-                {confirmLogout ? (
-                  <div className="bg-[#0B0B0B] border border-red-950/30 p-3 rounded-lg flex flex-col gap-2.5 shadow-inner">
-                    <span className="text-[10px] text-[#888] text-center font-medium">
-                      Вы точно хотите выйти?
-                    </span>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={onLogout}
-                        className="flex-1 py-1.5 px-2 bg-red-950/35 hover:bg-red-900/40 border border-red-900/20 rounded-md text-[10px] text-red-400 font-medium transition-colors text-center cursor-pointer"
-                      >
-                        Выйти
-                      </button>
-                      <button
-                        onClick={() => setConfirmLogout(false)}
-                        className="flex-1 py-1.5 px-2 bg-[#141414] hover:bg-[#1A1A1A] border border-[#222] rounded-md text-[10px] text-[#A0A0A0] font-medium transition-colors text-center cursor-pointer"
-                      >
-                        Отмена
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => setConfirmLogout(true)}
-                    className="flex items-center gap-3 w-full py-2 px-3 rounded-lg text-left hover:bg-[#151515] transition-all text-[#888] hover:text-[#CCC]"
-                  >
-                    <LogOut size={14} />
-                    <span className="text-[11px]">Выйти</span>
-                  </button>
-                )}
-              </div>
+              <button
+                onClick={onOpenProfile}
+                className="flex items-center gap-3 w-full py-3 px-2 rounded-lg text-left hover:bg-[#151515] transition-all"
+              >
+                <div className="w-8 h-8 rounded bg-[#111] overflow-hidden border border-[#222] flex items-center justify-center">
+                  {user.photoURL ? (
+                    <img
+                      src={user.photoURL}
+                      alt={user.displayName || "Profile"}
+                      className="w-full h-full object-cover"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <User size={14} className="text-[#888]" />
+                  )}
+                </div>
+                <div className="flex flex-col flex-1 overflow-hidden">
+                  <span className="text-[11px] font-medium text-[#E0E0E0] truncate">
+                    {user.displayName || "Пользователь"}
+                  </span>
+                  <span className="text-[9px] text-[#555] truncate">
+                    {user.email}
+                  </span>
+                </div>
+              </button>
             ) : (
               <button
                 onClick={onLogin}

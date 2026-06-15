@@ -5,7 +5,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { doc, deleteDoc } from 'firebase/firestore';
-import { auth, googleProvider, signInWithPopup, signOut, db } from './lib/firebase';
+import { auth, googleProvider, githubProvider, signInWithPopup, signOut, db } from './lib/firebase';
 import { 
   testFirestoreConnection, 
   loadUserSessions, 
@@ -18,7 +18,12 @@ import {
   publishNotification,
   loadUserSkills,
   saveUserSkill,
-  deleteUserSkill
+  deleteUserSkill,
+  detectDangerousKeywords,
+  isSuicideQuery,
+  isDrugQuery,
+  isTerrorismQuery,
+  logDangerousRequest
 } from './lib/firebaseService';
 import Background from './components/Background';
 import LeftSidebar from './components/LeftSidebar';
@@ -28,6 +33,8 @@ import NotificationsPanel from './components/NotificationsPanel';
 import SkillsHubModal from './components/SkillsHubModal';
 import { ChatSession, Message, AppNotification, Skill, IntegrationConfig } from './types';
 import SplashLoader from './components/SplashLoader';
+import LegalModals from './components/LegalModals';
+import AbuseLogsModal from './components/AbuseLogsModal';
 import { motion, AnimatePresence } from 'motion/react';
 import { Bell, X } from 'lucide-react';
 
@@ -81,49 +88,83 @@ const DEFAULT_SKILLS: Skill[] = [
 
 const INITIAL_INTEGRATIONS: IntegrationConfig[] = [
   {
-    id: 'search',
-    name: 'Веб-поиск (DuckDuckGo)',
-    description: 'Интегрирует поиск по интернету прямо в ваши текстовые запросы для актуальной информации.',
+    id: 'supabase',
+    name: 'Supabase Database REST',
+    description: 'Интегрирует вашу облачную Postgres БД через REST API. Позволяет читать строки из таблиц по запросу /supabase.',
     isEnabled: false,
-    value: '',
-    placeholder: 'Необязательный поисковый запрос (или оставите пустым)',
-    label: 'Запрос по умолчанию (необязательно)'
-  },
-  {
-    id: 'weather',
-    name: 'Погода (OpenWeather)',
-    description: 'Предоставляет текущую погодную информацию для выбранных городов.',
-    isEnabled: false,
-    value: 'Москва',
-    placeholder: 'Например: Москва',
-    label: 'Город по умолчанию'
-  },
-  {
-    id: 'crypto',
-    name: 'Криптовалюты (CoinGecko)',
-    description: 'Запрашивает актуальный курс криптовалют к доллару США.',
-    isEnabled: false,
-    value: 'bitcoin',
-    placeholder: 'Например: bitcoin, ethereum, solana',
-    label: 'ID монеты (строчные буквы)'
+    value: 'users',
+    placeholder: 'Имя таблицы (например, users, products)',
+    label: 'Таблица по умолчанию',
+    fields: [
+      {
+        key: 'SUPABASE_URL',
+        label: 'Supabase Project URL',
+        value: '',
+        type: 'text',
+        placeholder: 'https://xxx.supabase.co'
+      },
+      {
+        key: 'SUPABASE_ANON_KEY',
+        label: 'Supabase Anon / Public Key',
+        value: '',
+        type: 'password',
+        placeholder: 'eyJhbGciOiJIUzI1Ni...'
+      }
+    ]
   },
   {
     id: 'github',
-    name: 'GitHub API Репозитории',
-    description: 'Считывает открытые данные публичных репозиториев (звезды, форки, открытые ишью).',
+    name: 'GitHub Developer API',
+    description: 'Интегрирует репозитории GitHub. Считывает 이슈, коммиты, пулреквесты и релизы.',
     isEnabled: false,
     value: 'facebook/react',
     placeholder: 'owner/repository (например, facebook/react)',
-    label: 'Репозиторий'
+    label: 'Репозиторий по умолчанию',
+    fields: [
+      {
+        key: 'GITHUB_TOKEN',
+        label: 'Personal Access Token (Необязательно)',
+        value: '',
+        type: 'password',
+        placeholder: 'ghp_...'
+      }
+    ]
   },
   {
-    id: 'webhook',
-    name: 'Пользовательский Webhook',
-    description: 'Отправляет POST-уведомление или GET-запрос на ваш автоматизационный URL (Zapier, Make, custom API).',
+    id: 'vercel',
+    name: 'Vercel Deployment Tracker',
+    description: 'Следит за статусом деплоев вашего проекта на Vercel.',
     isEnabled: false,
     value: '',
-    placeholder: 'https://api.example.com/webhook',
-    label: 'URL вебхука'
+    placeholder: 'ID или имя проекта Vercel',
+    label: 'Имя проекта Vercel',
+    fields: [
+      {
+        key: 'VERCEL_TOKEN',
+        label: 'Vercel API Token',
+        value: '',
+        type: 'password',
+        placeholder: 'Vercel Personal/Team Token'
+      }
+    ]
+  },
+  {
+    id: 'firebase',
+    name: 'Firebase Firestore REST',
+    description: 'Интегрирует Firestore БД для быстрого чтения данных из коллекций.',
+    isEnabled: false,
+    value: 'users',
+    placeholder: 'Имя коллекции (например, users, chats)',
+    label: 'Коллекция по умолчанию',
+    fields: [
+      {
+        key: 'FIREBASE_PROJECT_ID',
+        label: 'Firebase Project ID',
+        value: '',
+        type: 'text',
+        placeholder: 'my-project-12345'
+      }
+    ]
   }
 ];
 
@@ -154,6 +195,13 @@ export default function App() {
     }
   });
   const [activeToast, setActiveToast] = useState<AppNotification | null>(null);
+
+  // Legal policy states
+  const [isLegalOpen, setIsLegalOpen] = useState(false);
+  const [legalTab, setLegalTab] = useState<'privacy' | 'terms'>('privacy');
+
+  // Compliance security log states
+  const [isAbuseLogsOpen, setIsAbuseLogsOpen] = useState(false);
 
   // Subscribe to real-time notification broadcasts
   useEffect(() => {
@@ -218,6 +266,37 @@ export default function App() {
     triggerHaptic(30);
   };
 
+  const handleLogout = () => {
+    if (user?.uid === 'guest-local-user') {
+      setUser(null);
+    } else {
+      signOut(auth);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!user) return;
+    try {
+      if (user.uid !== 'guest-local-user' && auth.currentUser) {
+        await auth.currentUser.delete();
+        alert('Ваш аккаунт был успешно удален.');
+      } else {
+        setUser(null);
+        alert('Гостевой аккаунт был успешно сброшен.');
+      }
+      localStorage.removeItem('yorn_integrations');
+      localStorage.removeItem('selected_session_id');
+      setSessions([]);
+    } catch (error: any) {
+      if (error.code === 'auth/requires-recent-login') {
+        alert('Для совершения этого действия требуется повторный вход в аккаунт. Пожалуйста, выполните повторный вход, чтобы подтвердить свою личность, а затем попробуйте снова.');
+        signOut(auth);
+      } else {
+        alert('Ошибка при удалении аккаунта: ' + error.message);
+      }
+    }
+  };
+
   useEffect(() => {
     const detectDevice = () => {
       const uA = navigator.userAgent || '';
@@ -260,7 +339,14 @@ export default function App() {
   const [integrations, setIntegrations] = useState<IntegrationConfig[]>(() => {
     try {
       const saved = localStorage.getItem('yorn_integrations');
-      return saved ? JSON.parse(saved) : INITIAL_INTEGRATIONS;
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        // Ensure the saved integration scheme represents our new developer-centric schema with fields
+        if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].fields !== undefined) {
+          return parsed.filter(i => ['supabase', 'github', 'vercel', 'firebase'].includes(i.id));
+        }
+      }
+      return INITIAL_INTEGRATIONS;
     } catch {
       return INITIAL_INTEGRATIONS;
     }
@@ -327,6 +413,8 @@ export default function App() {
   const [typingLabel, setTypingLabel] = useState<string | undefined>(undefined);
   const [mode, setMode] = useState<'mini' | 'base' | 'max' | 'auto'>('auto');
   const [theme, setTheme] = useState(() => localStorage.getItem('yorn_theme') || 'dark');
+  const [hubStyle, setHubStyle] = useState<'default' | 'cyberpunk' | 'glass' | 'brutalist'>('default');
+  const [chatStyle, setChatStyle] = useState<'default' | 'cyberpunk' | 'glass' | 'brutalist'>('default');
   const [systemPrompt, setSystemPrompt] = useState(() => localStorage.getItem('yorn_prompt') || 'Вы — YorN AI, продвинутый, тактичный и лаконичный ИИ-ассистент, помогающий пользователю в любых задачах. Вы общаетесь вежливо, компетентно и отвечаете четко, по существу.');
   const [showTts, setShowTts] = useState(() => {
     const saved = localStorage.getItem('yorn_show_tts');
@@ -351,6 +439,11 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('yorn_theme', theme);
   }, [theme]);
+
+  useEffect(() => {
+    localStorage.removeItem('yorn_hub_style');
+    localStorage.removeItem('yorn_chat_style');
+  }, []);
 
   useEffect(() => {
     localStorage.setItem('yorn_prompt', systemPrompt);
@@ -476,6 +569,10 @@ export default function App() {
   };
 
   const handleSendMessage = async (content: string, rawAttachments?: { name: string; content: string; size: string }[]) => {
+    if (isTyping) {
+      return;
+    }
+
     if (content.trim().startsWith('/skill')) {
       setIsSkillsHubOpen(true);
       return;
@@ -509,6 +606,23 @@ export default function App() {
     
     if (isNewSession) {
       activeSessionId = Date.now().toString();
+    }
+
+    // Security compliance audit: scan user question for dangerous triggers
+    const matchedSecurityTriggers = detectDangerousKeywords(content);
+    let isBlockedBySecurity = false;
+    
+    if (matchedSecurityTriggers.length > 0) {
+      logDangerousRequest(activeSessionId, content, matchedSecurityTriggers)
+        .catch(err => console.error("Failed to commit security compliance audit log:", err));
+        
+      const securityPolicy = localStorage.getItem('yorn_security_policy') || 'logging';
+      if (securityPolicy === 'blocking') {
+        isBlockedBySecurity = true;
+      }
+    }
+    
+    if (isNewSession) {
       const dateStr = new Date().toLocaleDateString('ru-RU');
       const createdAtStr = new Date().toISOString();
       const newSession: ChatSession = {
@@ -540,6 +654,111 @@ export default function App() {
       } catch (err) {
         console.error("Error saving message to Firestore:", err);
       }
+    }
+
+    // Crisis intervention: if query is about suicide or self-harm, display maximum supportive care immediately
+    const isSuicide = isSuicideQuery(content);
+    if (isSuicide) {
+      const suicideSupportMsg: Message = {
+         id: (Date.now() + 1).toString(),
+         role: 'assistant',
+         content: `Служба психологической поддержки.`,
+         timestamp: new Date().toISOString(),
+         isAnimated: false,
+         isSuicideSupport: true
+      };
+      
+      setSessions(prev => prev.map(s => {
+         if (s.id === activeSessionId) {
+            return { ...s, messages: [...s.messages, suicideSupportMsg] };
+         }
+         return s;
+      }));
+      
+      try {
+         await saveFirestoreMessage(activeSessionId, suicideSupportMsg);
+      } catch (err) {
+         console.error("Error saving automatic suicide helper reply:", err);
+      }
+      return;
+    }
+
+    // Crisis intervention: if query is about drugs/substance abuse, display maximum recovery care immediately
+    const isDrug = isDrugQuery(content);
+    if (isDrug) {
+      const drugSupportMsg: Message = {
+         id: (Date.now() + 1).toString(),
+         role: 'assistant',
+         content: `Наркологическая реабилитационная служба.`,
+         timestamp: new Date().toISOString(),
+         isAnimated: false,
+         isDrugSupport: true
+      };
+      
+      setSessions(prev => prev.map(s => {
+         if (s.id === activeSessionId) {
+            return { ...s, messages: [...s.messages, drugSupportMsg] };
+         }
+         return s;
+      }));
+      
+      try {
+         await saveFirestoreMessage(activeSessionId, drugSupportMsg);
+      } catch (err) {
+         console.error("Error saving automatic drug helper reply:", err);
+      }
+      return;
+    }
+
+    // Crisis intervention: if query is about terrorism/violence, display radicalization prevention info immediately
+    const isTerrorism = isTerrorismQuery(content);
+    if (isTerrorism) {
+      const terrorismSupportMsg: Message = {
+         id: (Date.now() + 1).toString(),
+         role: 'assistant',
+         content: `Служба антитеррористической безопасности.`,
+         timestamp: new Date().toISOString(),
+         isAnimated: false,
+         isTerrorismSupport: true
+      };
+      
+      setSessions(prev => prev.map(s => {
+         if (s.id === activeSessionId) {
+            return { ...s, messages: [...s.messages, terrorismSupportMsg] };
+         }
+         return s;
+      }));
+      
+      try {
+         await saveFirestoreMessage(activeSessionId, terrorismSupportMsg);
+      } catch (err) {
+         console.error("Error saving automatic terrorism helper reply:", err);
+      }
+      return;
+    }
+
+    if (isBlockedBySecurity) {
+      const complianceBotMsg: Message = {
+         id: (Date.now() + 1).toString(),
+         role: 'assistant',
+         content: `🚨 **ДОСТУП ЗАБЛОКИРОВАН ОФИЦЕРОМ ИБ**\n\nВаш запрос содержит недопустимые ключевые слова/действия и заблокирован в соответствии со спецификацией **RF-152**.\n\n*   **Обнаруженные триггеры**: ${matchedSecurityTriggers.map(t => `\`${t}\``).join(', ')}\n*   **Защитное действие**: Запрос не отправлен на сервера API-ассистента для обеспечения безопасности.\n\n*Событие зафиксировано в архивах аудита Firestore и Вашей БД Supabase.*`,
+         timestamp: new Date().toISOString(),
+         isAnimated: true,
+      };
+      
+      setSessions(prev => prev.map(s => {
+         if (s.id === activeSessionId) {
+            return { ...s, messages: [...s.messages, complianceBotMsg] };
+         }
+         return s;
+      }));
+      
+      try {
+         await saveFirestoreMessage(activeSessionId, complianceBotMsg);
+      } catch (err) {
+         console.error("Error saving automatic security reply:", err);
+      }
+      return;
     }
 
     setIsTyping(true);
@@ -661,6 +880,23 @@ export default function App() {
       } catch (e: any) {
         if (e.name === 'AbortError') {
           console.log("Planning mode was aborted");
+          const stoppedMsg: Message = {
+            id: (Date.now() + 1).toString(),
+            role: 'assistant',
+            content: "⏹️ *Генерация ответа остановлена пользователем.*",
+            timestamp: new Date().toISOString(),
+            isAnimated: true,
+          };
+          setSessions(prevSessions => prevSessions.map(s => 
+            s.id === activeSessionId 
+              ? { ...s, messages: [...s.messages, stoppedMsg] } 
+              : s
+          ));
+          try {
+            await saveFirestoreMessage(activeSessionId!, stoppedMsg);
+          } catch (err) {
+            console.error("Error saving aborted plan message:", err);
+          }
           return;
         }
         const newBotMsg: Message = {
@@ -744,6 +980,23 @@ export default function App() {
     } catch (e: any) {
        if (e.name === 'AbortError') {
          console.log("Chat generation was aborted");
+         const stoppedMsg: Message = {
+           id: (Date.now() + 1).toString(),
+           role: 'assistant',
+           content: "⏹️ *Генерация ответа остановлена пользователем.*",
+           timestamp: new Date().toISOString(),
+           isAnimated: true,
+         };
+         setSessions(prevSessions => prevSessions.map(s => 
+           s.id === activeSessionId 
+             ? { ...s, messages: [...s.messages, stoppedMsg] } 
+             : s
+         ));
+         try {
+           await saveFirestoreMessage(activeSessionId!, stoppedMsg);
+         } catch (err) {
+           console.error("Error saving aborted message:", err);
+         }
          return;
        }
        const newBotMsg: Message = {
@@ -771,6 +1024,7 @@ export default function App() {
   };
 
   const handleRegenerateMessage = async () => {
+    if (isTyping) return;
     if (!currentSessionId || !user) return;
     const session = sessions.find(s => s.id === currentSessionId);
     if (!session || session.messages.length === 0) return;
@@ -984,6 +1238,23 @@ export default function App() {
     } catch (e: any) {
        if (e.name === 'AbortError') {
          console.log("Regenerate standard message was aborted");
+         const stoppedMsg: Message = {
+           id: (Date.now() + 1).toString(),
+           role: 'assistant',
+           content: "⏹️ *Генерация ответа остановлена пользователем.*",
+           timestamp: new Date().toISOString(),
+           isAnimated: true,
+         };
+         setSessions(prevSessions => prevSessions.map(s => 
+           s.id === currentSessionId 
+             ? { ...s, messages: [...messagesToKeep, stoppedMsg] } 
+             : s
+         ));
+         try {
+           await saveFirestoreMessage(currentSessionId, stoppedMsg);
+         } catch (err) {
+           console.error("Error saving aborted message:", err);
+         }
          return;
        }
        const newBotMsg: Message = {
@@ -1029,9 +1300,12 @@ export default function App() {
             <div className="w-16 h-16 bg-[#1A1A1A] rounded-full border border-[#333] flex items-center justify-center mb-6 shadow-inner">
                <span className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-indigo-500">Y</span>
             </div>
-            <h1 className="text-xl font-semibold text-[#E0E0E0] mb-2 text-center text-balance">Добро пожаловать в Атмосферный Чат</h1>
-            <p className="text-sm text-[#888] text-center mb-8 text-balance">
-              Войдите с помощью Google, чтобы продолжить общение с искусственным интеллектом.
+            <h1 className="text-xl font-semibold text-[#E0E0E0] mb-2 text-center text-balance font-sans">
+              Добро пожаловать!<br />
+              <span className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-indigo-500 mt-1 inline-block">YorN AI</span>
+            </h1>
+            <p className="text-xs text-[#888] text-center mb-8 text-balance font-sans leading-relaxed">
+              Выберите способ авторизации для безопасного сохранения данных и продолжения общения.
             </p>
             <div className="flex flex-col gap-3 w-full">
               <button 
@@ -1044,9 +1318,9 @@ export default function App() {
                     }
                   });
                 }}
-                className="w-full py-3 px-4 bg-white hover:bg-gray-100 text-black rounded-lg transition-colors flex items-center justify-center gap-3 font-medium keep-original-color cursor-pointer"
+                className="w-full py-2.5 px-4 bg-white hover:bg-gray-100 text-black rounded-lg transition-colors flex items-center justify-center gap-3 font-semibold text-xs keep-original-color cursor-pointer"
               >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="keep-original-color">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="keep-original-color">
                   <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
                   <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
                   <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
@@ -1054,89 +1328,47 @@ export default function App() {
                 </svg>
                 Войти через Google
               </button>
-              
+
               <button 
                 onClick={() => {
-                  const guestUser = {
-                    uid: 'guest-local-user',
-                    displayName: 'Локальный гость',
-                    email: 'guest@yorn.ai',
-                    photoURL: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=100&q=80',
-                    emailVerified: true,
-                    isAnonymous: false,
-                    metadata: {},
-                    providerData: []
-                  } as any;
-                  setUser(guestUser);
+                  signInWithPopup(auth, githubProvider).catch((error) => {
+                    if (error.code === 'auth/unauthorized-domain') {
+                      alert('Для работы авторизации необходимо добавить домен этого приложения в Firebase Console -> Authentication -> Settings -> Authorized domains. Добавьте этот домен: ' + window.location.hostname);
+                    } else if (error.code === 'auth/operation-not-allowed') {
+                      alert('Эта функция не активирована. Чтобы войти через GitHub, перейдите в Firebase Console -> Authentication -> Sign-in method, включите провайдера GitHub и укажите Client ID / Client Secret, полученные в настройках Discord/GitHub Developer settings.');
+                    } else {
+                      alert('Ошибка авторизации через GitHub: ' + error.message + '\n\nУбедитесь, что провайдер GitHub включен и настроен в панели Firebase.');
+                    }
+                  });
                 }}
-                className="w-full py-2.5 px-4 bg-transparent hover:bg-white/5 text-[#888] hover:text-[#E0E0E0] border border-[#222] hover:border-[#444] rounded-lg transition-all flex items-center justify-center gap-2 text-xs font-semibold uppercase tracking-wider cursor-pointer"
+                className="w-full py-2.5 px-4 bg-[#24292F] hover:bg-[#2F363D] text-white border border-[#30363D] rounded-lg transition-colors flex items-center justify-center gap-3 font-semibold text-xs keep-original-color cursor-pointer"
               >
-                Продолжить локально (Без облака)
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" className="keep-original-color">
+                  <path fillRule="evenodd" clipRule="evenodd" d="M12 2C6.477 2 2 6.477 2 12c0 4.42 2.865 8.17 6.839 9.49.5.092.682-.217.682-.482 0-.237-.008-.866-.013-1.7-2.782.603-3.369-1.34-3.369-1.34-.454-1.156-1.11-1.464-1.11-1.464-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.831.092-.646.35-1.086.637-1.336-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.579.688.481C19.137 20.167 22 16.418 22 12c0-5.523-4.477-10-10-10z" />
+                </svg>
+                Войти через GitHub
               </button>
             </div>
 
-            {/* Divider */}
-            <div className="w-full h-[1px] bg-[#222] my-6" />
-
-            {/* Technology Stack & Hosting (Render) */}
-            <div className="flex flex-col items-center w-full select-none">
-              <span className="text-[9px] uppercase tracking-[0.2em] text-[#555] mb-3.5 font-bold">
-                Стек технологий & Хостинг
-              </span>
-              <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-3 opacity-60 hover:opacity-100 transition-opacity duration-300">
-                {/* React */}
-                <div className="flex items-center gap-1.5" title="React 18">
-                  <svg className="w-3.5 h-3.5 text-[#58C4DC] fill-none stroke-current animate-[spin_10s_linear_infinite]" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="12" r="10" />
-                    <ellipse cx="12" cy="12" rx="4" ry="10" transform="rotate(30,12,12)" />
-                    <ellipse cx="12" cy="12" rx="4" ry="10" transform="rotate(150,12,12)" />
-                  </svg>
-                  <span className="text-[10px] text-[#A0A0A0] font-mono font-medium">React</span>
-                </div>
-
-                {/* Vite */}
-                <div className="flex items-center gap-1.5" title="Vite">
-                  <svg className="w-3.5 h-3.5 text-[#F6C61C]" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M19.78 3H4.22a.5.5 0 0 0-.41.78l8 15a.5.5 0 0 0 .84 0l8-15a.5.5 0 0 0-.41-.78z M12 18L5.78 6.33h12.44L12 18z" />
-                    <path d="M14.5 5.5l-2.5 5 1.5.5-3 5.5L12.5 11l-1.5-.5z" />
-                  </svg>
-                  <span className="text-[10px] text-[#A0A0A0] font-mono font-medium">Vite</span>
-                </div>
-
-                {/* Tailwind */}
-                <div className="flex items-center gap-1.5" title="Tailwind CSS">
-                  <svg className="w-3.5 h-3.5 text-[#38BDF8]" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M12 6.036c-2.43 0-4.05 1.216-4.86 3.649 1.215-1.216 2.632-1.621 4.251-1.216.924.23 1.584.896 2.315 1.634C14.896 11.233 16.03 12.38 18.252 12.38c2.43 0 4.05-1.216 4.86-3.649-1.215 1.216-2.632 1.621-4.25 1.216-.925-.23-1.585-.896-2.317-1.634C15.353 7.182 14.218 6.036 12 6.036zm-4.86 5.43c-2.43 0-4.05 1.216-4.86 3.649 1.215-1.216 2.632-1.621 4.25-1.216.925.23 1.585.896 2.317 1.634 1.189 1.129 2.324 2.275 4.546 2.275 2.43 0 4.05-1.216 4.86-3.649-1.215 1.216-2.632 1.621-4.25 1.216-.925-.23-1.585-.896-2.313-1.634-1.192-1.129-2.327-2.275-4.55-2.275z"/>
-                  </svg>
-                  <span className="text-[10px] text-[#A0A0A0] font-mono font-medium">Tailwind</span>
-                </div>
-
-                {/* Firebase */}
-                <div className="flex items-center gap-1.5" title="Firebase">
-                  <svg className="w-3.5 h-3.5 text-[#FFCA28]" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M3.877 17.52L5.8 5.75c.08-.47.46-.83.94-.87.49-.03.93.22 1.11.66l2.19 5.48L3.877 17.52zM12 11.02l2.36-4.52c.23-.44.7-.68 1.19-.58.49.1.86.49.91.99l.9 8.78L12 11.02zm8.123 6.5l-3.23-6.19 2.81-5.38a1.002 1.002 0 0 1 1.76.88l-1.34 10.69zM12 21.36l-8.31-4.75L12 10.99l8.31 5.62-8.31 4.75z" />
-                  </svg>
-                  <span className="text-[10px] text-[#A0A0A0] font-mono font-medium">Firebase</span>
-                </div>
-
-                {/* Gemini AI */}
-                <div className="flex items-center gap-1.5" title="Gemini AI">
-                  <svg className="w-3.5 h-3.5 text-[#A855F7] fill-none stroke-current" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                  </svg>
-                  <span className="text-[10px] text-[#A0A0A0] font-mono font-medium">Gemini</span>
-                </div>
-
-                {/* Render */}
-                <div className="flex items-center gap-1.5" title="Render (Cloud Hosting)">
-                  <svg className="w-3.5 h-3.5 text-[#46DE91] fill-none stroke-current" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="22" y1="12" x2="2" y2="12" />
-                    <path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
-                    <line x1="6" y1="16" x2="6.01" y2="16" strokeWidth="2" />
-                    <line x1="10" y1="16" x2="10.01" y2="16" strokeWidth="2" />
-                  </svg>
-                  <span className="text-[10px] text-[#A0A0A0] font-mono font-medium">Render</span>
-                </div>
+            {/* Added Policy Links */}
+            <div id="login-legal-links" className="mt-6 flex flex-col items-center gap-1.5 text-[10px] text-neutral-500 font-mono">
+              <span className="text-[9px] uppercase tracking-wider text-neutral-700">Правовая информация</span>
+              <div className="flex flex-wrap justify-center gap-x-2 gap-y-1">
+                <button 
+                  id="login-privacy-link"
+                  onClick={() => { setLegalTab('privacy'); setIsLegalOpen(true); }}
+                  className="hover:text-purple-400 hover:underline cursor-pointer transition-colors"
+                >
+                  Политика
+                </button>
+                <span className="text-neutral-800 select-none">•</span>
+                <button 
+                  id="login-terms-link"
+                  onClick={() => { setLegalTab('terms'); setIsLegalOpen(true); }}
+                  className="hover:text-indigo-400 hover:underline cursor-pointer transition-colors"
+                >
+                  Соглашение
+                </button>
               </div>
             </div>
           </div>
@@ -1172,13 +1404,6 @@ export default function App() {
               }
             });
           }}
-          onLogout={() => {
-            if (user?.uid === 'guest-local-user') {
-              setUser(null);
-            } else {
-              signOut(auth);
-            }
-          }}
         />
         
         <div className={`flex-1 flex flex-col h-full min-w-0 transition-all duration-300 ease-in-out ${isLeftOpen ? 'lg:pl-[280px]' : 'lg:pl-0'}`}>
@@ -1203,6 +1428,7 @@ export default function App() {
             customSkills={customSkills}
             systemSkills={DEFAULT_SKILLS}
             onOpenSkillsHub={() => setIsSkillsHubOpen(true)}
+            chatStyle={chatStyle}
           />
         </div>
 
@@ -1212,6 +1438,10 @@ export default function App() {
           user={user}
           theme={theme}
           setTheme={setTheme}
+          hubStyle={hubStyle}
+          setHubStyle={setHubStyle}
+          chatStyle={chatStyle}
+          setChatStyle={setChatStyle}
           systemPrompt={systemPrompt}
           setSystemPrompt={setSystemPrompt}
           showTts={showTts}
@@ -1225,6 +1455,14 @@ export default function App() {
           topP={topP}
           setTopP={setTopP}
           isMobileDevice={isMobileDevice}
+          onOpenSkillsHub={() => setIsSkillsHubOpen(true)}
+          onLogout={handleLogout}
+          onDeleteAccount={handleDeleteAccount}
+          onOpenLegal={(tab) => {
+            setLegalTab(tab);
+            setIsLegalOpen(true);
+          }}
+          onOpenAbuseLogs={() => setIsAbuseLogsOpen(true)}
         />
 
         <NotificationsPanel
@@ -1250,6 +1488,18 @@ export default function App() {
           onDeleteSkill={handleDeleteSkill}
           integrations={integrations}
           onUpdateIntegrations={handleUpdateIntegrations}
+          hubStyle={hubStyle}
+        />
+
+        <LegalModals
+          isOpen={isLegalOpen}
+          onClose={() => setIsLegalOpen(false)}
+          initialTab={legalTab}
+        />
+
+        <AbuseLogsModal
+          isOpen={isAbuseLogsOpen}
+          onClose={() => setIsAbuseLogsOpen(false)}
         />
 
         {/* Real-time Toast Notification Alert */}
