@@ -190,28 +190,28 @@ export function SuicideSupportCard({ content }: SuicideSupportCardProps) {
   ];
 
   return (
-    <div className="w-full bg-gradient-to-b from-[#141013] to-[#0D090E] border-2 border-rose-900/30 rounded-3xl p-5 md:p-6 shadow-xl shadow-rose-950/5 relative my-4 overflow-hidden select-text text-[#E5E5E5] font-sans">
+    <div className="w-full bg-gradient-to-b from-[#141013] to-[#0D090E] border-2 border-rose-900/30 rounded-2xl md:rounded-3xl p-4 sm:p-5 md:p-6 shadow-xl shadow-rose-950/5 relative my-4 overflow-hidden select-text text-[#E5E5E5] font-sans">
       {/* Decorative Warm Accent Light */}
       <div className="absolute top-0 right-0 w-48 h-48 bg-rose-500/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-0 left-12 w-36 h-36 bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
 
       {/* Header */}
-      <div className="flex items-start gap-4 mb-5 border-b border-rose-950/40 pb-4 relative z-10">
-        <div className="p-3 bg-gradient-to-tr from-rose-500/20 to-amber-500/15 rounded-2xl border border-rose-500/30 shrink-0">
-          <Heart className="w-6 h-6 text-rose-450 animate-pulse text-rose-450" />
+      <div className="flex items-start gap-3 sm:gap-4 mb-5 border-b border-rose-950/40 pb-4 relative z-10">
+        <div className="p-2 sm:p-3 bg-gradient-to-tr from-rose-500/20 to-amber-500/15 rounded-xl sm:rounded-2xl border border-rose-500/30 shrink-0">
+          <Heart className="w-5 h-5 sm:w-6 sm:h-6 text-rose-450 animate-pulse text-rose-450" />
         </div>
         <div>
-          <h2 className="text-base md:text-lg font-bold tracking-tight text-white flex items-center gap-2">
+          <h2 className="text-sm sm:text-base md:text-lg font-bold tracking-tight text-white flex items-center gap-2">
             Пожалуйста, останьтесь. Ваша жизнь невероятно ценна.
           </h2>
-          <p className="text-xs text-rose-300/80 leading-relaxed mt-1">
+          <p className="text-[11px] sm:text-xs text-rose-300/80 leading-relaxed mt-1">
             Мы чувствуем, через какую тяжелую боль и темноту вы сейчас проходите. Но в этом мире вы не одни. Пожалуйста, позвольте нам позаботиться о вашей безопасности и сделать этот шаг вместе с вами.
           </p>
         </div>
       </div>
 
       {/* Quick Info & Action Selector Tabs */}
-      <div className="flex flex-wrap gap-1.5 mb-5 bg-[#080508]/80 p-1.5 rounded-xl border border-rose-950/20 relative z-10 overflow-x-auto">
+      <div className="flex flex-nowrap md:flex-wrap gap-1.5 mb-5 bg-[#080508]/80 p-1.5 rounded-xl border border-rose-950/20 relative z-10 overflow-x-auto scrollbar-hide scroll-smooth">
         <button
           onClick={() => { setActiveTab('contacts'); setBreathingActive(false); }}
           className={`px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer transition-all flex items-center gap-1.5 shrink-0 ${
@@ -559,28 +559,28 @@ export function DrugSupportCard({ content }: DrugSupportCardProps) {
   ];
 
   return (
-    <div className="w-full bg-gradient-to-b from-[#0E1512] to-[#0A0F0D] border-2 border-emerald-900/30 rounded-3xl p-5 md:p-6 shadow-xl shadow-emerald-950/5 relative my-4 overflow-hidden select-text text-[#E5E5E5] font-sans">
+    <div className="w-full bg-gradient-to-b from-[#0E1512] to-[#0A0F0D] border-2 border-emerald-900/30 rounded-2xl md:rounded-3xl p-4 sm:p-5 md:p-6 shadow-xl shadow-emerald-950/5 relative my-4 overflow-hidden select-text text-[#E5E5E5] font-sans">
       {/* Decorative Warm Accent Light */}
       <div className="absolute top-0 right-0 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-0 left-12 w-36 h-36 bg-teal-500/5 rounded-full blur-3xl pointer-events-none" />
 
       {/* Header */}
-      <div className="flex items-start gap-4 mb-5 border-b border-emerald-950/40 pb-4 relative z-10">
-        <div className="p-3 bg-gradient-to-tr from-emerald-500/20 to-teal-500/15 rounded-2xl border border-emerald-500/30 shrink-0">
-          <Activity className="w-6 h-6 text-emerald-400 animate-pulse" />
+      <div className="flex items-start gap-3 sm:gap-4 mb-5 border-b border-emerald-950/40 pb-4 relative z-10">
+        <div className="p-2 sm:p-3 bg-gradient-to-tr from-emerald-500/20 to-teal-500/15 rounded-xl sm:rounded-2xl border border-emerald-500/30 shrink-0">
+          <Activity className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-400 animate-pulse" />
         </div>
         <div>
-          <h2 className="text-base md:text-lg font-bold tracking-tight text-white flex items-center gap-2">
+          <h2 className="text-sm sm:text-base md:text-lg font-bold tracking-tight text-white flex items-center gap-2">
             Вы сильнее зависимости. Мы поможем вам вернуть свободу.
           </h2>
-          <p className="text-xs text-emerald-300/80 leading-relaxed mt-1">
+          <p className="text-[11px] sm:text-xs text-emerald-300/80 leading-relaxed mt-1">
             Зависимость уводит человека в тяжелый тупик, разрушая здоровье, разум и связи с близкими. Но выход и полное исцеление абсолютно реальны. Пожалуйста, сделайте выбор в пользу своего здоровья сегодня.
           </p>
         </div>
       </div>
 
       {/* Action Selector Tabs */}
-      <div className="flex flex-wrap gap-1.5 mb-5 bg-[#050806]/80 p-1.5 rounded-xl border border-emerald-950/20 relative z-10 overflow-x-auto">
+      <div className="flex flex-nowrap md:flex-wrap gap-1.5 mb-5 bg-[#050806]/80 p-1.5 rounded-xl border border-emerald-950/20 relative z-10 overflow-x-auto scrollbar-hide scroll-smooth">
         <button
           onClick={() => setActiveTab('contacts')}
           className={`px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer transition-all flex items-center gap-1.5 shrink-0 ${
@@ -762,28 +762,28 @@ export function TerrorismSupportCard({ content }: TerrorismSupportCardProps) {
   ];
 
   return (
-    <div className="w-full bg-gradient-to-b from-[#180F0F] to-[#110B0B] border-2 border-red-900/30 rounded-3xl p-5 md:p-6 shadow-xl shadow-red-950/5 relative my-4 overflow-hidden select-text text-[#E5E5E5] font-sans">
+    <div className="w-full bg-gradient-to-b from-[#180F0F] to-[#110B0B] border-2 border-red-900/30 rounded-2xl md:rounded-3xl p-4 sm:p-5 md:p-6 shadow-xl shadow-red-950/5 relative my-4 overflow-hidden select-text text-[#E5E5E5] font-sans">
       {/* Decorative Warm Accent Light */}
       <div className="absolute top-0 right-0 w-48 h-48 bg-red-500/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-0 left-12 w-36 h-36 bg-rose-500/5 rounded-full blur-3xl pointer-events-none" />
 
       {/* Header */}
-      <div className="flex items-start gap-4 mb-5 border-b border-red-950/40 pb-4 relative z-10">
-        <div className="p-3 bg-gradient-to-tr from-red-500/20 to-rose-500/15 rounded-2xl border border-red-500/30 shrink-0">
-          <ShieldAlert className="w-6 h-6 text-red-500 animate-pulse" />
+      <div className="flex items-start gap-3 sm:gap-4 mb-5 border-b border-red-950/40 pb-4 relative z-10">
+        <div className="p-2 sm:p-3 bg-gradient-to-tr from-red-500/20 to-rose-500/15 rounded-xl sm:rounded-2xl border border-red-500/30 shrink-0">
+          <ShieldAlert className="w-5 h-5 sm:w-6 sm:h-6 text-red-500 animate-pulse" />
         </div>
         <div>
-          <h2 className="text-base md:text-lg font-bold tracking-tight text-white flex items-center gap-2">
+          <h2 className="text-sm sm:text-base md:text-lg font-bold tracking-tight text-white flex items-center gap-2">
             Безопасность жизни. Противодействие давлению и насилию.
           </h2>
-          <p className="text-xs text-red-300/80 leading-relaxed mt-1">
+          <p className="text-[11px] sm:text-xs text-red-300/80 leading-relaxed mt-1">
             Человеческая жизнь бесценна. Если вы столкнулись с давлением, вымогательством, шантажом, попытками вербовки в экстремистские группы или террористические сети, пожалуйста, остановитесь. Есть законы и службы, готовые вас защитить.
           </p>
         </div>
       </div>
 
       {/* Action Tabs */}
-      <div className="flex flex-wrap gap-1.5 mb-5 bg-[#0A0505]/80 p-1.5 rounded-xl border border-red-950/20 relative z-10 overflow-x-auto">
+      <div className="flex flex-nowrap sm:flex-wrap gap-1.5 mb-5 bg-[#0A0505]/80 p-1.5 rounded-xl border border-red-950/20 relative z-10 overflow-x-auto scrollbar-hide scroll-smooth">
         <button
           onClick={() => setActiveTab('contacts')}
           className={`px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer transition-all flex items-center gap-1.5 shrink-0 ${
@@ -1023,20 +1023,26 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
     } catch (err) {}
   };
 
+  const isSupportMsg = message.isSuicideSupport || message.isDrugSupport || message.isTerrorismSupport;
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 15 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-      className={`flex w-full ${isUser ? 'justify-end' : 'justify-start'} mb-8`}
+      className={`flex w-full ${isUser ? 'justify-end' : 'justify-start'} mb-6 sm:mb-8`}
     >
       <div 
-        className={`max-w-[85%] md:max-w-[80%] flex ${isUser ? 'justify-end' : 'justify-start'} w-full`}
+        className={`${
+          isSupportMsg 
+            ? 'max-w-full' 
+            : 'max-w-[88%] sm:max-w-[85%] md:max-w-[80%]'
+        } flex ${isUser ? 'justify-end' : 'justify-start'} w-full`}
       >
         <div 
           className={
             isUser 
-              ? 'bg-[#121212] border border-[#222] px-6 py-4 rounded-[2rem] rounded-tr-none shadow-sm' 
+              ? 'bg-[#121212] border border-[#222] px-4 py-3 sm:px-6 sm:py-4 rounded-[1.5rem] sm:rounded-[2rem] rounded-tr-none shadow-sm' 
               : 'pt-1 w-full'
           }
         >

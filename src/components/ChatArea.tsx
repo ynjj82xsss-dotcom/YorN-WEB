@@ -791,7 +791,7 @@ export default function ChatArea({
                    <button 
                      onClick={() => setShowModeSelect(!showModeSelect)}
                      className={actionButtonClass(showModeSelect)}
-                     title="Выбор ИИ Модели"> <Settings2 size={11} className={showModeSelect ? "text-purple-400" : "text-[#555]"} /> <span>{mode === "mini" ? "YorN mini" : mode === "base" ? "YorN base" : mode === "max" ? "Yorn MAX" : "auto"}</span> </button>
+                     title="Выбор ИИ Модели"> <Settings2 size={11} className={showModeSelect ? "text-purple-400" : "text-[#555]"} /> <span className="sm:inline hidden">{mode === "mini" ? "YorN mini" : mode === "base" ? "YorN base" : mode === "max" ? "Yorn MAX" : "auto"}</span><span className="sm:hidden inline">{mode === "mini" ? "mini" : mode === "base" ? "base" : mode === "max" ? "max" : "auto"}</span> </button>
                    
                    {showModeSelect && (
                       <>
