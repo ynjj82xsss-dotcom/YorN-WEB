@@ -10,6 +10,8 @@ export type Message = {
   timestamp: string;
   isAnimated?: boolean;
   attachments?: MessageAttachment[];
+  imageUrl?: string;
+  imageModel?: string;
   isSuicideSupport?: boolean;
   isDrugSupport?: boolean;
   isTerrorismSupport?: boolean;

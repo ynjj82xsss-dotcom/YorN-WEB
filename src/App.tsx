@@ -411,7 +411,7 @@ export default function App() {
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [isTyping, setIsTyping] = useState(false);
   const [typingLabel, setTypingLabel] = useState<string | undefined>(undefined);
-  const [mode, setMode] = useState<'mini' | 'base' | 'max' | 'auto'>('auto');
+  const [mode, setMode] = useState<'mini' | 'base' | 'max' | 'auto' | 'image'>('auto');
   const [theme, setTheme] = useState(() => localStorage.getItem('yorn_theme') || 'dark');
   const [hubStyle, setHubStyle] = useState<'default' | 'cyberpunk' | 'glass' | 'brutalist'>('default');
   const [chatStyle, setChatStyle] = useState<'default' | 'cyberpunk' | 'glass' | 'brutalist'>('default');
@@ -566,6 +566,42 @@ export default function App() {
     triggerHaptic(10);
     setCurrentSessionId(id);
     if (window.innerWidth < 1024) setIsLeftOpen(false);
+  };
+
+  const handleSaveEditedImage = async (editedImageUrl: string, editPrompt: string) => {
+    const activeSessionId = currentSessionId;
+    if (!activeSessionId) return;
+
+    const userMsg: Message = {
+      id: Date.now().toString(),
+      role: 'user',
+      content: `Редактирование фрагмента изображения: "${editPrompt}"`,
+      timestamp: new Date().toISOString()
+    };
+
+    const assistantMsg: Message = {
+      id: (Date.now() + 1).toString(),
+      role: 'assistant',
+      content: 'Изображение было успешно отредактировано с помощью ИИ.',
+      timestamp: new Date().toISOString(),
+      imageUrl: editedImageUrl,
+      imageModel: 'YorN IMAGE'
+    };
+
+    setSessions(prevSessions => prevSessions.map(s => 
+      s.id === activeSessionId 
+        ? { ...s, messages: [...s.messages, userMsg, assistantMsg] } 
+        : s
+    ));
+
+    try {
+      await saveFirestoreMessage(activeSessionId, userMsg);
+      await saveFirestoreMessage(activeSessionId, assistantMsg);
+    } catch (err) {
+      console.error("Error saving edited image messages to Firestore:", err);
+    }
+
+    triggerHaptic(12);
   };
 
   const handleSendMessage = async (content: string, rawAttachments?: { name: string; content: string; size: string }[]) => {
@@ -771,9 +807,12 @@ export default function App() {
         
         let combinedUserText = content;
         if (rawAttachments && rawAttachments.length > 0) {
-          const filesContext = rawAttachments.map(att => 
-            `--- НАЧАЛО ФАЙЛА "${att.name}" (${att.size}) ---\n${att.content}\n--- КОНЕЦ ФАЙЛА "${att.name}" ---`
-          ).join('\n\n');
+          const filesContext = rawAttachments.map(att => {
+            const displayContent = (att.content && att.content.startsWith('data:image/'))
+              ? `[Изображение/Иллюстрация: ${att.name}]`
+              : att.content;
+            return `--- НАЧАЛО ФАЙЛА "${att.name}" (${att.size}) ---\n${displayContent}\n--- КОНЕЦ ФАЙЛА "${att.name}" ---`;
+          }).join('\n\n');
           combinedUserText = `${filesContext}\n\n${content}`;
         }
 
@@ -927,35 +966,69 @@ export default function App() {
       
       let combinedUserText = content;
       if (rawAttachments && rawAttachments.length > 0) {
-        const filesContext = rawAttachments.map(att => 
-          `--- НАЧАЛО ФАЙЛА "${att.name}" (${att.size}) ---\n${att.content}\n--- КОНЕЦ ФАЙЛА "${att.name}" ---`
-        ).join('\n\n');
+        const filesContext = rawAttachments.map(att => {
+          const displayContent = (att.content && att.content.startsWith('data:image/'))
+            ? `[Изображение/Иллюстрация: ${att.name}]`
+            : att.content;
+          return `--- НАЧАЛО ФАЙЛА "${att.name}" (${att.size}) ---\n${displayContent}\n--- КОНЕЦ ФАЙЛА "${att.name}" ---`;
+        }).join('\n\n');
         combinedUserText = `${filesContext}\n\n${content}`;
       }
 
-      const messagesToSend = [
-        ...history.map(m => ({ role: m.role, content: m.content })),
-        { role: 'user', content: combinedUserText }
-      ];
-      
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        signal: controller.signal,
-        body: JSON.stringify({
-          messages: messagesToSend,
-          mode: mode,
-          systemPrompt: systemPrompt + (activeSkill ? `\n\n[РЕЖИМ НАВЫКА "${activeSkill.name}"]: ${activeSkill.instructions}` : ''),
-          temperature: temperature,
-          topP: topP,
-          integrations: integrations
-        })
-      });
+      let botContent = '';
+      let botImageUrl: string | undefined = undefined;
+      let botImageModel: string | undefined = undefined;
 
-      const data = await response.json();
-      const botContent = response.ok ? (data.reply || "Пустой ответ") : `Ошибка: ${data.error || 'Не удалось подключиться к моделям.'}`;
+      let effectiveMode = mode;
+      if (mode === 'auto') {
+        const lowerText = combinedUserText.toLowerCase();
+        const imageKeywords = ['нарисуй', 'сгенерируй фото', 'сгенерируй картинку', 'сгенерируй изображение', 'создай фото', 'создай картинку', 'создай изображение', 'сделай фото', 'сделай картинку', 'сделай изображение', 'generate image', 'generate photo', 'generate picture'];
+        if (imageKeywords.some(kw => lowerText.includes(kw))) {
+          effectiveMode = 'image';
+        }
+      }
+
+      if (effectiveMode === 'image') {
+        setTypingLabel("Генерация изображения...");
+        const response = await fetch('/api/image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
+          body: JSON.stringify({ prompt: combinedUserText })
+        });
+        const data = await response.json();
+        if (response.ok && data.imageUrl) {
+          botContent = `Изображение сгенерировано.`;
+          botImageUrl = data.imageUrl;
+          botImageModel = data.model;
+        } else {
+          botContent = `Ошибка генерации: ${data.error || 'Сбой API.'}`;
+        }
+      } else {
+        const messagesToSend = [
+          ...history.map(m => ({ role: m.role, content: m.content })),
+          { role: 'user', content: combinedUserText }
+        ];
+        
+        const response = await fetch('/api/chat', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          signal: controller.signal,
+          body: JSON.stringify({
+            messages: messagesToSend,
+            mode: effectiveMode,
+            systemPrompt: systemPrompt + (activeSkill ? `\n\n[РЕЖИМ НАВЫКА "${activeSkill.name}"]: ${activeSkill.instructions}` : ''),
+            temperature: temperature,
+            topP: topP,
+            integrations: integrations
+          })
+        });
+
+        const data = await response.json();
+        botContent = response.ok ? (data.reply || "Пустой ответ") : `Ошибка: ${data.error || 'Не удалось подключиться к моделям.'}`;
+      }
       
       const newBotMsg: Message = {
          id: (Date.now() + 1).toString(),
@@ -963,6 +1036,8 @@ export default function App() {
          content: botContent,
          timestamp: new Date().toISOString(),
          isAnimated: true,
+         imageUrl: botImageUrl,
+         imageModel: botImageModel,
       };
       
       setSessions(prevSessions => prevSessions.map(s => 
@@ -1196,24 +1271,56 @@ export default function App() {
       return;
     }
 
-    try {
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        signal: controller.signal,
-        body: JSON.stringify({
-          messages: messagesToKeep.map(m => ({ role: m.role, content: m.content })),
-          mode: mode,
-          systemPrompt: systemPrompt + (activeRegenSkill ? `\n\n[РЕЖИМ НАВЫКА "${activeRegenSkill.name}"]: ${activeRegenSkill.instructions}` : ''),
-          temperature: temperature,
-          topP: topP
-        })
-      });
+    const lastUserMsgToKeep = messagesToKeep[messagesToKeep.length - 1];
+    let effectiveMode = mode;
+    if (mode === 'auto' && lastUserMsgToKeep) {
+      const lowerText = lastUserMsgToKeep.content.toLowerCase();
+      const imageKeywords = ['нарисуй', 'сгенерируй фото', 'сгенерируй картинку', 'сгенерируй изображение', 'создай фото', 'создай картинку', 'создай изображение', 'сделай фото', 'сделай картинку', 'сделай изображение', 'generate image', 'generate photo', 'generate picture'];
+      if (imageKeywords.some(kw => lowerText.includes(kw))) {
+        effectiveMode = 'image';
+      }
+    }
 
-      const data = await response.json();
-      const botContent = response.ok ? (data.reply || "Пустой ответ") : `Ошибка: ${data.error || 'Не удалось подключиться к моделям.'}`;
+    try {
+      let botContent = '';
+      let botImageUrl: string | undefined = undefined;
+      let botImageModel: string | undefined = undefined;
+
+      if (effectiveMode === 'image') {
+        setTypingLabel("Генерация изображения...");
+        const response = await fetch('/api/image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
+          body: JSON.stringify({ prompt: lastUserMsgToKeep.content })
+        });
+        const data = await response.json();
+        if (response.ok && data.imageUrl) {
+          botContent = `Изображение сгенерировано.`;
+          botImageUrl = data.imageUrl;
+          botImageModel = data.model;
+        } else {
+          botContent = `Ошибка генерации: ${data.error || 'Сбой API.'}`;
+        }
+      } else {
+        const response = await fetch('/api/chat', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          signal: controller.signal,
+          body: JSON.stringify({
+            messages: messagesToKeep.map(m => ({ role: m.role, content: m.content })),
+            mode: effectiveMode,
+            systemPrompt: systemPrompt + (activeRegenSkill ? `\n\n[РЕЖИМ НАВЫКА "${activeRegenSkill.name}"]: ${activeRegenSkill.instructions}` : ''),
+            temperature: temperature,
+            topP: topP
+          })
+        });
+
+        const data = await response.json();
+        botContent = response.ok ? (data.reply || "Пустой ответ") : `Ошибка: ${data.error || 'Не удалось подключиться к моделям.'}`;
+      }
 
       const newBotMsg: Message = {
          id: (Date.now() + 1).toString(),
@@ -1221,6 +1328,8 @@ export default function App() {
          content: botContent,
          timestamp: new Date().toISOString(),
          isAnimated: true,
+         imageUrl: botImageUrl,
+         imageModel: botImageModel,
       };
 
       setSessions(prevSessions => prevSessions.map(s => 
@@ -1429,6 +1538,7 @@ export default function App() {
             systemSkills={DEFAULT_SKILLS}
             onOpenSkillsHub={() => setIsSkillsHubOpen(true)}
             chatStyle={chatStyle}
+            onSaveEditedImage={handleSaveEditedImage}
           />
         </div>
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { motion } from 'motion/react';
 import { SlidersHorizontal, Info, X, User, Cpu, Smartphone, Laptop, CheckCircle2, LogOut, Trash2, ShieldCheck, Scale, ShieldAlert } from 'lucide-react';
 import { User as FirebaseUser } from 'firebase/auth';
@@ -65,6 +65,30 @@ export default function RightSidebar({
   const [activeTab, setActiveTab] = useState<'profile' | 'settings'>('profile');
   const [confirmLogout, setConfirmLogout] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const touchStartX = useRef<number | null>(null);
+  const touchStartY = useRef<number | null>(null);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX.current === null || touchStartY.current === null) return;
+    const deltaX = e.changedTouches[0].clientX - touchStartX.current;
+    const deltaY = e.changedTouches[0].clientY - touchStartY.current;
+
+    // Swipe right - close RightSidebar
+    if (Math.abs(deltaX) > 60 && Math.abs(deltaY) < 45) {
+      if (deltaX > 0) {
+        onClose();
+      }
+    }
+    touchStartX.current = null;
+    touchStartY.current = null;
+  };
+
   return (
     <>
       {/* Mobile backdrop */}
@@ -77,6 +101,8 @@ export default function RightSidebar({
 
       {/* Sidebar container */}
       <div 
+         onTouchStart={handleTouchStart}
+         onTouchEnd={handleTouchEnd}
          className={`fixed top-0 right-0 h-full w-[280px] shrink-0 z-50 flex flex-col items-stretch
                     bg-[#080808]/95 border-l border-[#1A1A1A] 
                     transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]

@@ -493,7 +493,7 @@ export default function SkillsHubModal({
                                   </span>
                                   <button 
                                     onClick={() => handleDelete(skill.id, skill.name)}
-                                    className="p-1 rounded text-neutral-500 hover:text-red-400 hover:bg-red-950/20 transition-colors opacity-0 group-hover:opacity-100 cursor-pointer"
+                                    className="p-1 rounded text-neutral-500 hover:text-red-400 hover:bg-red-950/20 transition-colors opacity-100 lg:opacity-0 lg:group-hover:opacity-100 cursor-pointer"
                                     title="Удалить навык"
                                   >
                                     <Trash2 size={12} />

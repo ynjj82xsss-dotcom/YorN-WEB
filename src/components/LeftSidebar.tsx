@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { motion } from "motion/react";
 import {
   Plus,
@@ -11,6 +11,7 @@ import {
   Edit2,
   Trash2,
   Pin,
+  MoreVertical,
 } from "lucide-react";
 import { ChatSession } from "../types";
 import { User as FirebaseUser } from "firebase/auth";
@@ -47,6 +48,28 @@ export default function LeftSidebar({
   const [menuSessionId, setMenuSessionId] = useState<string | null>(null);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
+
+  const touchStartX = useRef<number | null>(null);
+  const touchStartY = useRef<number | null>(null);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX.current === null || touchStartY.current === null) return;
+    const deltaX = e.changedTouches[0].clientX - touchStartX.current;
+    const deltaY = e.changedTouches[0].clientY - touchStartY.current;
+
+    if (Math.abs(deltaX) > 60 && Math.abs(deltaY) < 45) {
+      if (deltaX < 0) {
+        onClose();
+      }
+    }
+    touchStartX.current = null;
+    touchStartY.current = null;
+  };
 
   useEffect(() => {
     const closeMenu = () => setMenuSessionId(null);
@@ -91,6 +114,8 @@ export default function LeftSidebar({
 
       {/* Sidebar container */}
       <div
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
         className={`fixed top-0 left-0 h-full w-[280px] shrink-0 z-50 flex flex-col items-stretch
                    bg-[#080808]/95 border-r border-[#1A1A1A] 
                    transition-transform duration-300 ease-in-out overflow-hidden
@@ -210,8 +235,8 @@ export default function LeftSidebar({
                       </div>
 
                       {/* Pin indicator / action button */}
-                      <div className="flex items-center shrink-0 ml-1 relative z-20">
-                        {item.isPinned ? (
+                      <div className="flex items-center shrink-0 ml-1 gap-1 relative z-20">
+                        {item.isPinned && (
                           <button
                             type="button"
                             onClick={(e) => {
@@ -226,14 +251,31 @@ export default function LeftSidebar({
                               className="fill-[#C084FC]/20 transform rotate-45"
                             />
                           </button>
-                        ) : (
+                        )}
+
+                        {/* Mobile options menu */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            setMenuSessionId(menuSessionId === item.id ? null : item.id);
+                            setEditingSessionId(null);
+                          }}
+                          className="p-1 text-[#555] hover:text-[#CCC] hover:bg-white/5 rounded transition-all cursor-pointer block lg:hidden"
+                          title="Опции"
+                        >
+                          <MoreVertical size={12} />
+                        </button>
+
+                        {!item.isPinned && (
                           <button
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
                               onPinSession(item.id, true);
                             }}
-                            className="p-1 opacity-0 group-hover/item:opacity-100 text-[#444] hover:text-[#AAA] hover:bg-white/5 rounded transition-opacity transition-colors cursor-pointer"
+                            className="p-1 opacity-0 group-hover/item:opacity-100 text-[#444] hover:text-[#AAA] hover:bg-white/5 rounded transition-opacity transition-colors cursor-pointer hidden lg:block"
                             title="Закрепить"
                           >
                             <Pin size={10} />
@@ -246,7 +288,7 @@ export default function LeftSidebar({
                       <div
                         onClick={(e) => e.stopPropagation()}
                         onContextMenu={(e) => e.preventDefault()}
-                        className="absolute top-8 left-10 z-[100] bg-[#151515] border border-[#222] rounded-lg shadow-2xl flex flex-col p-1 min-w-[140px]"
+                        className="absolute top-8 right-2 z-[100] bg-[#151515] border border-[#222] rounded-lg shadow-2xl flex flex-col p-1 min-w-[140px]"
                       >
                         <button
                           onClick={() => {

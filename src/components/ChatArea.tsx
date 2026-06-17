@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { Menu, Settings2, ArrowUp, Mic, MicOff, Paperclip, FileText, X, SlidersHorizontal, Square, Bell, Sparkles, Terminal, Code, HelpCircle, Globe, Lightbulb, MessageSquare, Languages, Bot, Cpu, Compass } from 'lucide-react';
+import { Menu, Settings2, ArrowUp, Mic, MicOff, Paperclip, FileText, X, SlidersHorizontal, Square, Bell, Sparkles, Terminal, Code, HelpCircle, Globe, Lightbulb, MessageSquare, Languages, Bot, Cpu, Compass, Search } from 'lucide-react';
 import ChatMessage, { TypingIndicator } from './ChatMessage';
 import { Message, Skill } from '../types';
 
@@ -58,8 +58,8 @@ interface ChatAreaProps {
   onSendMessage: (content: string, rawAttachments?: { name: string; content: string; size: string }[]) => void;
   onRegenerate: () => void;
   onStopGeneration?: () => void;
-  mode: 'mini' | 'base' | 'max' | 'auto';
-  onModeChange: (mode: 'mini' | 'base' | 'max' | 'auto') => void;
+  mode: 'mini' | 'base' | 'max' | 'auto' | 'image';
+  onModeChange: (mode: 'mini' | 'base' | 'max' | 'auto' | 'image') => void;
   showTts: boolean;
   showRegenerate: boolean;
   loadingAnimation: string;
@@ -70,6 +70,7 @@ interface ChatAreaProps {
   systemSkills?: Skill[];
   onOpenSkillsHub?: () => void;
   chatStyle?: 'default' | 'cyberpunk' | 'glass' | 'brutalist';
+  onSaveEditedImage?: (editedImageUrl: string, prompt: string) => void;
 }
 
 export default function ChatArea({ 
@@ -93,7 +94,8 @@ export default function ChatArea({
   customSkills = [],
   systemSkills = [],
   onOpenSkillsHub,
-  chatStyle = 'default'
+  chatStyle = 'default',
+  onSaveEditedImage
 }: ChatAreaProps) {
   const [inputValue, setInputValue] = useState('');
   const [isRecording, setIsRecording] = useState(false);
@@ -453,24 +455,33 @@ export default function ChatArea({
 
   const processFiles = (fileList: FileList) => {
     Array.from(fileList).forEach(file => {
-      if (file.size > 2 * 1024 * 1024) {
-        alert(`Файл "${file.name}" слишком большой. Пожалуйста, выбирайте файлы размером меньше 2MB.`);
+      if (file.size > 50 * 1024 * 1024) {
+        alert(`Файл "${file.name}" слишком большой. Пожалуйста, выбирайте файлы размером меньше 50MB.`);
         return;
       }
       
+      const isImage = file.type.startsWith('image/');
       const reader = new FileReader();
       reader.onload = (event) => {
-        const text = event.target?.result as string;
+        const fileContent = event.target?.result as string;
         setAttachments(prev => {
           if (prev.some(p => p.name === file.name)) return prev; // Avoid duplicates
           return [...prev, {
             name: file.name,
-            content: text || '[Пустой файл]',
-            size: (file.size / 1024).toFixed(1) + ' KB'
+            content: fileContent || '[Пустой файл]',
+            size: file.size > 1024 * 1024 
+              ? (file.size / (1024 * 1024)).toFixed(1) + ' MB' 
+              : (file.size / 1024).toFixed(1) + ' KB',
+            isImg: isImage
           }];
         });
       };
-      reader.readAsText(file);
+      
+      if (isImage) {
+        reader.readAsDataURL(file);
+      } else {
+        reader.readAsText(file);
+      }
     });
 
     if (fileInputRef.current) {
@@ -556,7 +567,7 @@ export default function ChatArea({
               </div>
             )}
           </div>
-          <span className="text-xs font-light tracking-wide text-[#666]">Neural Session: <span className="text-[#AAA]">Alpha</span></span>
+          <span className="text-xs font-light tracking-wide text-[#666]">Neural Session: <span className="text-[#AAA]">BETA 1.5</span></span>
           <div className="flex items-center gap-1">
             <button 
               onClick={onOpenNotifications}
@@ -583,13 +594,47 @@ export default function ChatArea({
       {/* Chat Messages */}
       <div className="flex-1 overflow-y-auto px-4 md:px-8 py-6 scrollbar-hide flex flex-col">
         {messages.length === 0 && !isTyping ? (
-          <div className="flex-1 flex items-center justify-center">
-             <div className="flex flex-col items-center gap-4 opacity-40">
-                <div className="w-12 h-12 rounded-full border border-[#222] bg-[#111] flex items-center justify-center">
-                   <div className="w-2 h-2 bg-[#555] rounded-full" />
-                </div>
-                <span className="text-[#666] font-light tracking-wide text-sm">Ожидаю ввода...</span>
-             </div>
+          <div className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 w-full max-w-3xl mx-auto">
+            <div className="w-16 h-16 rounded-full border border-[#222] bg-gradient-to-t from-[#111] to-[#1a1a1a] flex items-center justify-center mb-6 shadow-[0_0_20px_rgba(255,255,255,0.02)] relative">
+               <div className="w-3 h-3 bg-white/40 rounded-full shadow-[0_0_10px_rgba(255,255,255,0.5)]" />
+               <motion.div 
+                 className="absolute inset-0 rounded-full border border-white/5"
+                 animate={{ scale: [1, 1.15, 1], opacity: [0.3, 0, 0.3] }}
+                 transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+               />
+            </div>
+            <h2 className="text-xl sm:text-2xl font-medium tracking-tight text-transparent bg-clip-text bg-gradient-to-b from-white to-[#aaa] mb-2 text-center">Привет! Чем я могу помочь?</h2>
+            <p className="text-[#666] font-light text-[13px] sm:text-sm text-center max-w-md mb-10">
+               Я здесь, чтобы ответить на ваши вопросы, помочь с кодом, текстами или просто пообщаться.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">
+               {[
+                 { icon: <Code size={18} className="text-[#888] group-hover:text-white transition-colors" />, title: "Написать код", desc: "Скрипты, функции, верстка", trigger: "code" },
+                 { icon: <MessageSquare size={18} className="text-[#888] group-hover:text-white transition-colors" />, title: "Составить текст", desc: "Эссе, письма, переводы", trigger: "text" },
+                 { icon: <Lightbulb size={18} className="text-[#888] group-hover:text-white transition-colors" />, title: "Поиск идей", desc: "Брейншторм, концепции, планы", trigger: "idea" },
+                 { icon: <Search size={18} className="text-[#888] group-hover:text-white transition-colors" />, title: "Поиск информации", desc: "Справка, поиск по сети", trigger: "search" },
+               ].map((prompt, idx) => (
+                 <button
+                   key={idx}
+                   onClick={() => {
+                     setInputValue(`/${prompt.trigger} `);
+                     if (textareaRef.current) {
+                       textareaRef.current.focus();
+                       textareaRef.current.style.height = 'auto';
+                       textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 150)}px`;
+                     }
+                   }}
+                   className="group p-4 rounded-xl border border-[#222] bg-[#111]/50 hover:bg-[#1a1a1a] hover:border-[#333] transition-all flex flex-col items-start text-left cursor-pointer"
+                 >
+                   <div className="mb-3 p-2 rounded-lg bg-[#222]/50 group-hover:bg-[#333]/50 text-[#888] group-hover:text-white transition-colors">
+                     {prompt.icon}
+                   </div>
+                   <h3 className="text-[#E5E5E5] font-medium text-[13px] mb-1">{prompt.title}</h3>
+                   <p className="text-[#555] text-[11px] sm:text-xs font-light group-hover:text-[#777] transition-colors">{prompt.desc}</p>
+                 </button>
+               ))}
+            </div>
           </div>
         ) : (
           <div className="w-full max-w-3xl mx-auto flex flex-col">
@@ -606,6 +651,7 @@ export default function ChatArea({
                   onRegenerate={onRegenerate}
                   showTts={showTts}
                   showRegenerate={showRegenerate}
+                  onSaveEditedImage={onSaveEditedImage}
                 />
               ));
             })()}
@@ -791,7 +837,7 @@ export default function ChatArea({
                    <button 
                      onClick={() => setShowModeSelect(!showModeSelect)}
                      className={actionButtonClass(showModeSelect)}
-                     title="Выбор ИИ Модели"> <Settings2 size={11} className={showModeSelect ? "text-purple-400" : "text-[#555]"} /> <span className="sm:inline hidden">{mode === "mini" ? "YorN mini" : mode === "base" ? "YorN base" : mode === "max" ? "Yorn MAX" : "auto"}</span><span className="sm:hidden inline">{mode === "mini" ? "mini" : mode === "base" ? "base" : mode === "max" ? "max" : "auto"}</span> </button>
+                     title="Выбор ИИ Модели"> <Settings2 size={11} className={showModeSelect ? "text-purple-400" : "text-[#555]"} /> <span className="sm:inline hidden">{mode === "mini" ? "YorN mini" : mode === "base" ? "YorN base" : mode === "max" ? "Yorn MAX" : mode === "image" ? "YorN image" : "auto"}</span><span className="sm:hidden inline">{mode === "mini" ? "mini" : mode === "base" ? "base" : mode === "max" ? "max" : mode === "image" ? "image" : "auto"}</span> </button>
                    
                    {showModeSelect && (
                       <>
@@ -843,6 +889,17 @@ export default function ChatArea({
                               {mode === 'max' ? <div className="w-1.5 h-1.5 rounded-full bg-amber-400" /> : <div className="w-1.5 h-1.5 rounded-full bg-transparent" />}
                             </div>
                             <span className="text-[9px] text-neutral-500 font-mono">Максимальный разум (72B)</span>
+                          </button>
+
+                          <button 
+                            onClick={() => { onModeChange('image'); setShowModeSelect(false); }}
+                            className={dropdownItemClass(mode === 'image')}
+                          >
+                            <div className="flex items-center justify-between w-full text-xs font-semibold">
+                              <span>YorN image</span>
+                              {mode === 'image' ? <div className="w-1.5 h-1.5 rounded-full bg-pink-400" /> : <div className="w-1.5 h-1.5 rounded-full bg-transparent" />}
+                            </div>
+                            <span className="text-[9px] text-neutral-500 font-mono">Генерация фото ( BETA )</span>
                           </button>
                         </motion.div>
                       </>

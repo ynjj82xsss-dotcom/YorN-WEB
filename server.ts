@@ -2,15 +2,60 @@ import express from 'express';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { HfInference } from '@huggingface/inference';
+import { GoogleGenAI } from '@google/genai';
 
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
 
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ limit: '10mb', extended: true }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 const HF_TOKEN = process.env.HF_TOKEN || "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";
 const hf = new HfInference(HF_TOKEN);
+
+const ai = new GoogleGenAI({
+  apiKey: process.env.GEMINI_API_KEY,
+  httpOptions: {
+    headers: {
+      'User-Agent': 'aistudio-build',
+    }
+  }
+});
+
+// Resilient helper to call Gemini when HF is down/depleted
+async function callGemini(messages: any[], systemInstruction?: string, config: any = {}) {
+  let extraSystemInstructions = systemInstruction || '';
+  const filteredMessages = messages.filter((m: any) => {
+    if (m.role === 'system') {
+      extraSystemInstructions = extraSystemInstructions 
+        ? `${extraSystemInstructions}\n\n${m.content || m.text || ''}` 
+        : (m.content || m.text || '');
+      return false;
+    }
+    return true;
+  });
+
+  const contents = filteredMessages.map((m: any) => {
+    const role = (m.role === 'assistant' || m.role === 'model') ? 'model' : 'user';
+    return {
+      role: role,
+      parts: [{ text: m.content || m.text || '' }]
+    };
+  });
+
+  const geminiConfig: any = { ...config };
+  if (extraSystemInstructions) {
+    geminiConfig.systemInstruction = extraSystemInstructions.trim();
+  }
+
+  const response = await ai.models.generateContent({
+    model: "gemini-3.5-flash",
+    contents: contents,
+    config: geminiConfig
+  });
+
+  return response.text || '';
+}
 
 // Free, fast, high-quality instruction-tuned models on HF
 const MODELS = [
@@ -387,6 +432,21 @@ app.post('/api/chat', async (req, res) => {
     }
   }
 
+  if (!success) {
+    try {
+      console.log("Hugging Face models failed or depleted credits. Falling back to Gemini Client...");
+      const geminiReply = await callGemini(formattedMessages, undefined, {
+        temperature: tempVal,
+        topP: topPVal
+      });
+      responseText = geminiReply;
+      modelUsed = "gemini-3.5-flash (Core Failover)";
+      success = true;
+    } catch (geminiError: any) {
+      console.error("Gemini fallback also failed:", geminiError);
+    }
+  }
+
   if (success) {
     res.json({ reply: responseText, model: modelUsed });
   } else {
@@ -416,6 +476,7 @@ app.post('/api/train-skill', async (req, res) => {
 }`
   };
 
+  let text = '';
   try {
     const response = await hf.chatCompletion({
       model: "Qwen/Qwen2.5-Coder-32B-Instruct",
@@ -425,40 +486,327 @@ app.post('/api/train-skill', async (req, res) => {
     });
 
     if (response.choices && response.choices.length > 0) {
-      const text = response.choices[0].message.content || '';
-      let cleaned = text.trim();
-      if (cleaned.startsWith('```')) {
-        cleaned = cleaned.replace(/^```(json)?\n?/, '');
-      }
-      if (cleaned.endsWith('```')) {
-        cleaned = cleaned.slice(0, -3);
-      }
-      cleaned = cleaned.trim();
-
-      try {
-        const parsed = JSON.parse(cleaned);
-        // Ensure a valid trigger format
-        if (parsed.trigger) {
-          parsed.trigger = parsed.trigger.toLowerCase().replace(/[^a-z0-9_]/g, '');
-        }
-        res.json(parsed);
-      } catch (parseError) {
-        console.error("Failed to parse JSON response from LLM:", cleaned);
-        res.json({
-          name: "Пользовательский Скилл",
-          trigger: "custom_skill",
-          description: `Скилл на основе идеи: ${idea}`,
-          instructions: `Выполняй задачи пользователя, ориентируясь на следующую инструкцию: ${idea}`
-        });
-      }
-    } else {
-      res.status(500).json({ error: 'Не удалось получить ответ от нейросети' });
+      text = response.choices[0].message.content || '';
     }
-  } catch (error: any) {
-    console.error("Error in train-skill api:", error);
-    res.status(500).json({ error: error.message || 'Ошибка сервера тренировки скиллов' });
+  } catch (hfError: any) {
+    console.warn("HF train-skill failed. Falling back to Gemini Client...:", hfError.message || hfError);
+    try {
+      text = await callGemini([promptMessage], undefined, {
+        temperature: 0.6,
+        responseMimeType: "application/json"
+      });
+    } catch (geminiError: any) {
+      console.error("Gemini fallback in train-skill failed:", geminiError);
+    }
+  }
+
+  if (text) {
+    let cleaned = text.trim();
+    if (cleaned.startsWith('```')) {
+      cleaned = cleaned.replace(/^```(json)?\n?/, '');
+    }
+    if (cleaned.endsWith('```')) {
+      cleaned = cleaned.slice(0, -3);
+    }
+    cleaned = cleaned.trim();
+
+    try {
+      const parsed = JSON.parse(cleaned);
+      // Ensure a valid trigger format
+      if (parsed.trigger) {
+        parsed.trigger = parsed.trigger.toLowerCase().replace(/[^a-z0-9_]/g, '');
+      }
+      res.json(parsed);
+    } catch (parseError) {
+      console.error("Failed to parse JSON response from LLM:", cleaned);
+      res.json({
+        name: "Пользовательский Скилл",
+        trigger: "custom_skill",
+        description: `Скилл на основе идеи: ${idea}`,
+        instructions: `Выполняй задачи пользователя, ориентируясь на следующую инструкцию: ${idea}`
+      });
+    }
+  } else {
+    res.status(500).json({ error: 'Не удалось получить ответ от нейросети' });
   }
 });
+
+app.post('/api/image', async (req, res) => {
+  const { prompt } = req.body;
+  if (!prompt || typeof prompt !== 'string') {
+    return res.status(400).json({ error: 'Invalid prompt string' });
+  }
+
+  let finalPrompt = prompt;
+  
+  // Try to use Hugging Face LLM to translate and enhance the prompt to English for better results
+  try {
+    const promptMessage = {
+      role: 'user',
+      content: `You are an expert image generation prompt engineer. The user wants an image based on the following text.
+Translate it to English if it's not, and enhance it into a highly descriptive, high-quality image generation prompt.
+Unless the user explicitly asks for a cartoon, anime, 3D render, illustration, drawing, painting, or vector art, you MUST make the enhanced prompt describe a highly details, professional, realistic, lifelike photograph (e.g. specifying authentic textures, natural lighting, shot on 35mm lens, photorealistic details, high-end production camera). Under no circumstances make it look cartoonish, animated, CGI-like, or like a drawing unless explicitly requested.
+Keep it strictly under 55 words. Do not add any conversational text, explanations, or prefixes like "Prompt:". Return ONLY the final English prompt.
+User input: ${prompt}`
+    };
+
+    let text = '';
+    try {
+      const response = await hf.chatCompletion({
+        model: "Qwen/Qwen2.5-Coder-32B-Instruct",
+        messages: [promptMessage],
+        max_tokens: 150,
+        temperature: 0.7,
+      });
+
+      if (response.choices && response.choices.length > 0) {
+        text = response.choices[0].message.content || '';
+      }
+    } catch (hfErr) {
+      console.warn("HF prompt enhancement failed. Falling back to Gemini Client...");
+      text = await callGemini([promptMessage]);
+    }
+
+    if (text.trim()) {
+      finalPrompt = text.trim();
+      // Remove common prefixes that models might accidentally add
+      finalPrompt = finalPrompt.replace(/^(Enhanced )?(Image )?Prompt:\s*/i, '').trim();
+      console.log(`Enhanced Image Prompt: ${finalPrompt}`);
+    }
+  } catch (err) {
+    console.error("Prompt enhancement failed, using original prompt.", err);
+  }
+
+  // Fast, free image models on HF
+  const modelsToTry = [
+    "black-forest-labs/FLUX.1-schnell",
+    "stabilityai/stable-diffusion-xl-base-1.0",
+    "prompthero/openjourney"
+  ];
+
+  let success = false;
+  let imageUrl = '';
+  let modelUsed = '';
+
+  for (const model of modelsToTry) {
+    try {
+      const responseBlob = await hf.textToImage({
+        inputs: finalPrompt,
+        model: model,
+        parameters: {
+          negative_prompt: "cartoon, anime, 3d render, CGI, drawing, painting, illustration, vector, sketch, low quality, bad anatomy, ugly, distorted, blurry, doll, toy, unreal engine render",
+        }
+      }) as unknown as Blob;
+      
+      const buffer = Buffer.from(await responseBlob.arrayBuffer());
+      imageUrl = `data:${responseBlob.type};base64,${buffer.toString('base64')}`;
+      modelUsed = model;
+      success = true;
+      break;
+    } catch (e: any) {
+      console.warn(`[Failover Warning] Image Model ${model} returned error: ${e.message || e}. Trying next available...`);
+    }
+  }
+
+  if (success && imageUrl) {
+    res.json({ imageUrl, model: modelUsed });
+  } else {
+    // Ultimate fallback zero-setup working model using public pollinations API
+    let safePrompt = finalPrompt.trim();
+    if (safePrompt.length > 800) {
+      safePrompt = safePrompt.substring(0, 800);
+    }
+    safePrompt = encodeURIComponent(safePrompt);
+    const fallbackUrl = `https://image.pollinations.ai/prompt/${safePrompt}?width=1024&height=1024&nologo=true`;
+    res.json({ imageUrl: fallbackUrl, model: "Auto/Pollinations (Fallback)" });
+  }
+});
+
+app.post('/api/edit-image', async (req, res) => {
+  const { image, mask, prompt } = req.body;
+  if (!image || !mask || !prompt || typeof prompt !== 'string') {
+    return res.status(400).json({ error: 'Missing image, mask, or prompt string' });
+  }
+
+  let finalPrompt = prompt;
+
+  // Try to use Hugging Face LLM to translate and enhance the prompt
+  try {
+    const promptMessage = {
+      role: 'user',
+      content: `You are an expert image generation prompt engineer. The user wants to modify an image with the following instruction.
+Translate it to English if it's not, and enhance it into a highly descriptive, high-quality image generation / inpainting prompt.
+Keep it strictly under 50 words. Do not add any conversational text, explanations, or prefixes like "Prompt:". Return ONLY the final English prompt.
+Modification instruction: ${prompt}`
+    };
+
+    let text = '';
+    try {
+      const response = await hf.chatCompletion({
+        model: "Qwen/Qwen2.5-Coder-32B-Instruct",
+        messages: [promptMessage],
+        max_tokens: 150,
+        temperature: 0.7,
+      });
+
+      if (response.choices && response.choices.length > 0) {
+        text = response.choices[0].message.content || '';
+      }
+    } catch (hfErr) {
+      console.warn("HF prompt edit enhancement failed. Falling back to Gemini Client...");
+      text = await callGemini([promptMessage]);
+    }
+
+    if (text.trim()) {
+      finalPrompt = text.trim();
+      finalPrompt = finalPrompt.replace(/^(Enhanced )?(Image )?Prompt:\s*/i, '').trim();
+      console.log(`Enhanced Edit Prompt: ${finalPrompt}`);
+    }
+  } catch (err) {
+    console.error("Prompt enhancement failed for edit, using original.", err);
+  }
+
+  try {
+    // Parse helper
+    const base64ToBuffer = (base64Str: string) => {
+      const matches = base64Str.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+      if (!matches || matches.length !== 3) {
+        return { buffer: Buffer.from(base64Str, 'base64'), mimeType: 'image/png' };
+      }
+      return {
+        mimeType: matches[1],
+        buffer: Buffer.from(matches[2], 'base64')
+      };
+    };
+
+    // Load original image
+    let imageBuffer: Buffer;
+    let imageMime = 'image/png';
+    if (image.startsWith('http')) {
+      const imgRes = await fetch(image);
+      const arrBuf = await imgRes.arrayBuffer();
+      imageBuffer = Buffer.from(arrBuf);
+      imageMime = imgRes.headers.get('content-type') || 'image/png';
+    } else {
+      const parsed = base64ToBuffer(image);
+      imageBuffer = parsed.buffer;
+      imageMime = parsed.mimeType;
+    }
+
+    // Load mask
+    const parsedMask = base64ToBuffer(mask);
+    const maskBuffer = parsedMask.buffer;
+
+    const imageBlob = new Blob([imageBuffer], { type: imageMime });
+    const maskBlob = new Blob([maskBuffer], { type: 'image/png' });
+
+    let success = false;
+    let editedImageUrl = '';
+    let modelUsed = '';
+
+    // 1. Try a list of inpainting models
+    const inpaintingModels = [
+      "stabilityai/stable-diffusion-2-inpainting",
+      "runwayml/stable-diffusion-inpainting",
+      "diffusers/stable-diffusion-xl-1.0-inpainting-0.1"
+    ];
+
+    for (const model of inpaintingModels) {
+      try {
+        console.log(`Trying inpainting model: ${model}`);
+        const responseBlob = await hf.request({
+          model: model,
+          inputs: {
+            image: imageBlob,
+            mask_image: maskBlob,
+            prompt: finalPrompt,
+          }
+        }) as unknown as Blob;
+
+        const buffer = Buffer.from(await responseBlob.arrayBuffer());
+        editedImageUrl = `data:${responseBlob.type};base64,${buffer.toString('base64')}`;
+        modelUsed = model;
+        success = true;
+        break;
+      } catch (e: any) {
+        console.warn(`Inpainting model ${model} failed: ${e.message || e}`);
+      }
+    }
+
+    // 2. Fallback: Try image-to-image on several models
+    if (!success) {
+      const img2imgModels = [
+        "runwayml/stable-diffusion-v1-5",
+        "Lykon/DreamShaper",
+        "prompthero/openjourney",
+        "stabilityai/stable-diffusion-xl-base-1.0"
+      ];
+
+      for (const model of img2imgModels) {
+        try {
+          console.log(`Trying image-to-image model: ${model}`);
+          const responseBlob = await hf.imageToImage({
+            model: model,
+            inputs: imageBlob,
+            parameters: {
+              prompt: finalPrompt,
+              strength: 0.6,
+            }
+          }) as unknown as Blob;
+
+          const buffer = Buffer.from(await responseBlob.arrayBuffer());
+          editedImageUrl = `data:${responseBlob.type};base64,${buffer.toString('base64')}`;
+          modelUsed = `${model} (Img2Img Fallback)`;
+          success = true;
+          break;
+        } catch (e: any) {
+          console.warn(`Img2Img model ${model} failed: ${e.message || e}`);
+        }
+      }
+    }
+
+    // 3. Last HF Fail-safe: Fallback to a brand-new Text-to-Image Generation
+    if (!success) {
+      try {
+        console.log(`Inpainting and Img2Img both failed. Running text-to-image fallback with FLUX...`);
+        const responseBlob = await hf.textToImage({
+          inputs: finalPrompt,
+          model: "black-forest-labs/FLUX.1-schnell",
+        }) as unknown as Blob;
+
+        const buffer = Buffer.from(await responseBlob.arrayBuffer());
+        editedImageUrl = `data:${responseBlob.type};base64,${buffer.toString('base64')}`;
+        modelUsed = "black-forest-labs/FLUX.1-schnell (Txt2Img Fallback)";
+        success = true;
+      } catch (e: any) {
+        console.warn(`Text-to-image fallback failed: ${e.message || e}`);
+      }
+    }
+
+    // 4. Undefeatable Fallback: Pollinations.ai (returns instantly, 100% reliable)
+    if (!success) {
+      console.log(`All HF image editing models failed. Utilizing Pollinations API fallback...`);
+      let safePrompt = finalPrompt.trim();
+      if (safePrompt.length > 800) {
+        safePrompt = safePrompt.substring(0, 800);
+      }
+      const encodedPrompt = encodeURIComponent(safePrompt);
+      editedImageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&nologo=true`;
+      modelUsed = "Auto/Pollinations (Ultimate Edit Fallback)";
+      success = true;
+    }
+
+    if (success && editedImageUrl) {
+      res.json({ imageUrl: editedImageUrl, model: modelUsed });
+    } else {
+      res.status(500).json({ error: 'Не удалось отредактировать изображение. Попробуйте другой запрос.' });
+    }
+  } catch (err: any) {
+    console.error("Error editing image:", err);
+    res.status(500).json({ error: err.message || 'Внутренняя ошибка сервера при редактировании.' });
+  }
+});
+
 
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {
