@@ -435,10 +435,18 @@ export default function App() {
     const saved = localStorage.getItem('yorn_top_p');
     return saved === null ? 0.90 : parseFloat(saved);
   });
+  const [disableAnimations, setDisableAnimations] = useState(() => {
+    const saved = localStorage.getItem('yorn_disable_animations');
+    return saved === 'true';
+  });
 
   useEffect(() => {
     localStorage.setItem('yorn_theme', theme);
   }, [theme]);
+
+  useEffect(() => {
+    localStorage.setItem('yorn_disable_animations', String(disableAnimations));
+  }, [disableAnimations]);
 
   useEffect(() => {
     localStorage.removeItem('yorn_hub_style');
@@ -978,6 +986,8 @@ export default function App() {
       let botContent = '';
       let botImageUrl: string | undefined = undefined;
       let botImageModel: string | undefined = undefined;
+      let botAudioUrl: string | undefined = undefined;
+      let botAudioModel: string | undefined = undefined;
 
       let effectiveMode = mode;
       if (mode === 'auto') {
@@ -1038,6 +1048,8 @@ export default function App() {
          isAnimated: true,
          imageUrl: botImageUrl,
          imageModel: botImageModel,
+         audioUrl: botAudioUrl,
+         audioModel: botAudioModel,
       };
       
       setSessions(prevSessions => prevSessions.map(s => 
@@ -1285,6 +1297,8 @@ export default function App() {
       let botContent = '';
       let botImageUrl: string | undefined = undefined;
       let botImageModel: string | undefined = undefined;
+      let botAudioUrl: string | undefined = undefined;
+      let botAudioModel: string | undefined = undefined;
 
       if (effectiveMode === 'image') {
         setTypingLabel("Генерация изображения...");
@@ -1330,6 +1344,8 @@ export default function App() {
          isAnimated: true,
          imageUrl: botImageUrl,
          imageModel: botImageModel,
+         audioUrl: botAudioUrl,
+         audioModel: botAudioModel,
       };
 
       setSessions(prevSessions => prevSessions.map(s => 
@@ -1396,6 +1412,7 @@ export default function App() {
         isLoading={authLoading} 
         onComplete={() => setShowSplash(false)} 
         theme={theme} 
+        disableAnimations={disableAnimations}
       />
     );
   }
@@ -1573,6 +1590,8 @@ export default function App() {
             setIsLegalOpen(true);
           }}
           onOpenAbuseLogs={() => setIsAbuseLogsOpen(true)}
+          disableAnimations={disableAnimations}
+          setDisableAnimations={setDisableAnimations}
         />
 
         <NotificationsPanel

@@ -567,7 +567,7 @@ export default function ChatArea({
               </div>
             )}
           </div>
-          <span className="text-xs font-light tracking-wide text-[#666]">Neural Session: <span className="text-[#AAA]">BETA 1.5</span></span>
+          <span className="text-xs font-light tracking-wide text-[#666]">Neural Session: <span className="text-[#AAA]">1.6</span></span>
           <div className="flex items-center gap-1">
             <button 
               onClick={onOpenNotifications}

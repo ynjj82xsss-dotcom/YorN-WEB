@@ -12,6 +12,8 @@ export type Message = {
   attachments?: MessageAttachment[];
   imageUrl?: string;
   imageModel?: string;
+  audioUrl?: string;
+  audioModel?: string;
   isSuicideSupport?: boolean;
   isDrugSupport?: boolean;
   isTerrorismSupport?: boolean;

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Message } from '../types';
-import { Copy, Check, Volume2, VolumeX, RotateCw, FileText, Heart, Phone, Shield, Sparkles, Wind, CheckCircle, ExternalLink, RefreshCw, Compass, AlertTriangle, ShieldAlert, Activity, Flame, HelpCircle, Download, X } from 'lucide-react';
+import { Copy, Check, Volume2, VolumeX, RotateCw, FileText, Heart, Phone, Shield, Sparkles, Wind, CheckCircle, ExternalLink, RefreshCw, Compass, AlertTriangle, ShieldAlert, Activity, Flame, HelpCircle, Download, X, Music } from 'lucide-react';
 import Markdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
@@ -1097,6 +1097,26 @@ const ChatMessage: React.FC<ChatMessageProps> = ({
             </div>
           ) : (
             <div className="text-sm leading-relaxed text-[#888] markdown-body w-full">
+              {message.audioUrl && (
+                <div className="mb-4 p-4 rounded-xl border border-[#262626] bg-[#141414] max-w-sm">
+                  <div className="flex items-center gap-3 mb-2.5">
+                    <div className="p-2 bg-purple-500/10 border border-purple-500/20 rounded-md text-purple-400">
+                      <Music size={14} />
+                    </div>
+                    <div>
+                      <div className="text-xs font-semibold text-white">YorN Music Studio</div>
+                      <div className="text-[10px] text-[#A3A3A3] font-mono leading-none mt-1">
+                        {message.audioModel || "YorN music"}
+                      </div>
+                    </div>
+                  </div>
+                  <audio 
+                    src={message.audioUrl} 
+                    controls 
+                    className="w-full h-8 outline-none rounded-lg bg-black/45 border border-[#222]" 
+                  />
+                </div>
+              )}
               {message.imageUrl && (
                 <div className="mb-4 relative group rounded-xl overflow-hidden border border-[#222] bg-[#000]">
                   <img 

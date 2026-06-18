@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, ShieldCheck, FileText, Scale, Eye, Activity, Database, Key } from 'lucide-react';
+import { X, Shield, FileText } from 'lucide-react';
 
 interface LegalModalsProps {
   isOpen: boolean;
@@ -16,7 +16,7 @@ export default function LegalModals({ isOpen, onClose, initialTab = 'privacy' }:
       {isOpen && (
         <div 
           id="legal-modal-overlay"
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in"
         >
           {/* Backdrop click closer */}
           <motion.div
@@ -28,217 +28,224 @@ export default function LegalModals({ isOpen, onClose, initialTab = 'privacy' }:
             className="absolute inset-0 cursor-pointer"
           />
 
-          {/* Modal Container */}
+          {/* Modal Container: Classic Dark aesthetic, max 8px border-radius, no colorful gradients, no glow */}
           <motion.div
             id="legal-modal-content-container"
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            initial={{ opacity: 0, scale: 0.98, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            transition={{ type: 'spring', duration: 0.4 }}
-            className="relative z-10 w-full max-w-2xl h-[85vh] max-h-[750px] bg-[#0D0D0D]/95 backdrop-blur-2xl border border-[#222] rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+            exit={{ opacity: 0, scale: 0.98, y: 10 }}
+            transition={{ duration: 0.25, ease: 'easeOut' }}
+            className="relative z-10 w-full max-w-2xl h-[80vh] max-h-[700px] bg-[#0A0A0A] border border-[#262626] rounded-lg shadow-xl flex flex-col overflow-hidden"
           >
             {/* Header */}
-            <div id="legal-modal-header" className="p-5 border-b border-[#222] flex items-center justify-between">
+            <div id="legal-modal-header" className="p-6 border-b border-[#262626] flex items-center justify-between bg-[#0A0A0A]">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-[#1A1A1A] rounded-lg border border-[#333]">
+                <div className="p-2 bg-[#141414] rounded-md border border-[#262626]">
                   {activeTab === 'privacy' ? (
-                    <ShieldCheck className="w-5 h-5 text-purple-400" />
+                    <Shield className="w-4 h-4 text-white" strokeWidth={1.5} />
                   ) : (
-                    <Scale className="w-5 h-5 text-indigo-400" />
+                    <FileText className="w-4 h-4 text-white" strokeWidth={1.5} />
                   )}
                 </div>
                 <div>
-                  <h2 id="legal-modal-title" className="text-base font-semibold text-[#E0E0E0]">
+                  <h2 id="legal-modal-title" className="text-sm font-semibold tracking-tight text-white uppercase">
                     {activeTab === 'privacy' ? 'Политика конфиденциальности' : 'Пользовательское соглашение'}
                   </h2>
-                  <p id="legal-modal-subtitle" className="text-xs text-[#555] font-mono">YorN AI • Версия от 15.06.2026</p>
+                  <p id="legal-modal-subtitle" className="text-[10px] text-[#A3A3A3] font-mono tracking-wider mt-0.5">ВЕРСИЯ ОТ 17.06.2026</p>
                 </div>
               </div>
 
               <button
                 id="legal-modal-close-btn"
                 onClick={onClose}
-                className="p-1.5 hover:bg-[#1A1A1A] text-[#888] hover:text-white rounded-lg transition-colors cursor-pointer border border-transparent hover:border-[#333]"
+                className="p-1.5 bg-transparent hover:bg-[#141414] text-[#A3A3A3] hover:text-white rounded-md transition-colors cursor-pointer border border-[#262626]"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" strokeWidth={1.5} />
               </button>
             </div>
 
             {/* Tabs Selector */}
-            <div id="legal-modal-tabs" className="px-5 py-3 bg-[#111] border-b border-[#222] flex gap-2">
+            <div id="legal-modal-tabs" className="px-6 py-3 bg-[#141414] border-b border-[#262626] flex gap-2">
               <button
                 id="tab-btn-privacy"
                 onClick={() => setActiveTab('privacy')}
-                className={`py-1.5 px-3.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer ${
+                className={`py-1.5 px-3 rounded-md text-[11px] font-medium tracking-tight flex items-center gap-2 transition-all cursor-pointer ${
                   activeTab === 'privacy'
-                    ? 'bg-[#1A1A1A] text-white border border-[#333] shadow-inner'
-                    : 'text-[#666] hover:text-[#999] hover:bg-[#1A1A1A]/30 border border-transparent'
+                    ? 'bg-[#0A0A0A] text-white border border-[#262626]'
+                    : 'text-[#A3A3A3] hover:text-white border border-transparent bg-transparent'
                 }`}
               >
-                <Eye className="w-3.5 h-3.5" />
-                Политика конфиденциальности
+                <Shield className="w-3.5 h-3.5" strokeWidth={1.5} />
+                Конфиденциальность
               </button>
               <button
                 id="tab-btn-terms"
                 onClick={() => setActiveTab('terms')}
-                className={`py-1.5 px-3.5 rounded-lg text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer ${
+                className={`py-1.5 px-3 rounded-md text-[11px] font-medium tracking-tight flex items-center gap-2 transition-all cursor-pointer ${
                   activeTab === 'terms'
-                    ? 'bg-[#1A1A1A] text-white border border-[#333] shadow-inner'
-                    : 'text-[#666] hover:text-[#999] hover:bg-[#1A1A1A]/30 border border-transparent'
+                    ? 'bg-[#0A0A0A] text-white border border-[#262626]'
+                    : 'text-[#A3A3A3] hover:text-white border border-transparent bg-transparent'
                 }`}
               >
-                <FileText className="w-3.5 h-3.5" />
-                Пользовательское соглашение
+                <FileText className="w-3.5 h-3.5" strokeWidth={1.5} />
+                Условия использования
               </button>
             </div>
 
             {/* Content Body */}
             <div 
               id="legal-modal-scrollable-body" 
-              className="flex-1 overflow-y-auto p-6 space-y-6 text-[#A0A0A0] text-xs leading-relaxed scrollbar-thin scrollbar-thumb-[#222] scrollbar-track-transparent"
+              className="flex-1 overflow-y-auto p-6 space-y-6 text-[#A3A3A3] text-[11px] leading-relaxed scrollbar-thin scrollbar-thumb-[#262626] scrollbar-track-transparent bg-[#0A0A0A]"
             >
               {activeTab === 'privacy' ? (
                 /* Privacy Policy Document */
                 <div id="doc-privacy" className="space-y-6">
-                  <div className="p-4 bg-purple-950/10 border border-purple-900/20 rounded-xl flex gap-3">
-                    <Activity className="w-5 h-5 text-purple-400 shrink-0 mt-0.5" />
-                    <p className="text-[#8B5CF6]">
-                      Ваша конфиденциальность является главным приоритетом YorN AI. Мы следуем философии минимизации сбора пользовательских данных и обеспечения максимального уровня их защиты.
+                  {/* Philosophy Callout */}
+                  <div className="p-4 bg-[#141414] border border-[#262626] rounded-md flex gap-3">
+                    <Shield className="w-4 h-4 text-white shrink-0 mt-0.5" strokeWidth={1.5} />
+                    <p className="text-[#A3A3A3]">
+                      Ваша конфиденциальность является безусловным приоритетом. Мы следуем философии жесткой минимизации сбора пользовательских данных и обеспечения максимального уровня их защиты в соответствии с отраслевыми стандартами безопасности.
                     </p>
                   </div>
 
                   <section className="space-y-2">
-                    <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-                      <span className="w-1.5 h-1.5 bg-purple-500 rounded-full" />
-                      1. Какую информацию мы обрабатываем?
+                    <h3 className="text-xs font-semibold text-white flex items-center gap-2 uppercase tracking-wide">
+                      <span className="w-1 h-1 bg-white rounded-full" />
+                      1. Сбор и обработка информации
                     </h3>
                     <p>
-                      Для предоставления услуг и персонализации взаимодействия мы работаем исключительно со следующими категориями данных:
+                      Для предоставления функциональных возможностей платформы мы обрабатываем исключительно следующие категории данных:
                     </p>
-                    <ul className="list-disc list-inside pl-2 space-y-1 text-[#888]">
-                      <li><strong className="text-[#A0A0A0]">Данные учетной записи:</strong> Уникальный идентификатор пользователя (UID), адрес электронной почты, имя и фото профиля, получаемые от выбранного провайдера авторизации (Google или GitHub).</li>
-                      <li><strong className="text-[#A0A0A0]">История диалогов:</strong> Сообщения, создаваемые в чат-сессиях, хранятся исключительно для возможности продолжения переписки и кросс-девайсной синхронизации.</li>
-                      <li><strong className="text-[#A0A0A0]">Индивидуальные настройки:</strong> Системный промпт (инструкции ИИ), цветовая тема, стили оформления, параметр Temperature/Top-P и состояние включенных функций сохраняются локально на вашем клиенте.</li>
-                      <li><strong className="text-[#A0A0A0]">Пользовательские навыки и интеграции:</strong> Специфические настройки дополнительных функций и параметров сохраняются в вашем профиле.</li>
+                    <ul className="list-disc list-inside pl-1 space-y-1 text-[#A3A3A3]/80">
+                      <li>
+                        <strong className="text-white font-medium">Данные авторизации:</strong> Уникальный идентификатор (UID), адрес электронной почты, отображаемое имя и аватар профиля, получаемые через защищенный протокол OAuth от выбранного вами провайдера (Google или GitHub).
+                      </li>
+                      <li>
+                        <strong className="text-white font-medium">История взаимодействия:</strong> Содержимое переписки и параметры сессий сохраняются исключительно в целях предоставления доступа к диалогам на различных устройствах и обеспечения непрерывности контекста.
+                      </li>
+                      <li>
+                        <strong className="text-white font-medium">Пользовательские настройки:</strong> Выбранная тема оформления, инструкции системного промпта, параметры модели (температура, top-p) и настройки триггеров ИБ хранятся в защищенном локальном хранилище вашего браузера (localStorage) и не передаются внешним сервисам без явной необходимости.
+                      </li>
                     </ul>
                   </section>
 
                   <section className="space-y-2">
-                    <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-                      <span className="w-1.5 h-1.5 bg-purple-500 rounded-full" />
-                      2. Технологии хранения и безопасность
+                    <h3 className="text-xs font-semibold text-white flex items-center gap-2 uppercase tracking-wide">
+                      <span className="w-1 h-1 bg-white rounded-full" />
+                      2. Технологии хранения данных
                     </h3>
                     <p>
-                      Мы используем передовое и надежное облачное хранилище для гарантии сохранности данных:
+                      Все данные хранятся и обрабатываются с использованием сертифицированных и защищенных инфраструктурных решений:
                     </p>
-                    <ul className="list-disc list-inside pl-2 space-y-1 text-[#888]">
-                      <li>Безопасность контролируется правилами <strong className="text-[#A0A0A0]">Firebase Security Rules</strong> на уровне сессии и пользователя. Сторонние лица не могут получить доступ к вашим чат-сессиям.</li>
-                      <li>История чатов хранится в облачной базе данных Нового поколения <strong className="text-[#A0A0A0]">Google Firestore</strong>.</li>
-                      <li>Вся сетевая активность между вашим клиентом и серверами зашифрована по протоколам <strong className="text-[#A0A0A0]">HTTPS / SSL/TLS</strong>.</li>
+                    <ul className="list-disc list-inside pl-1 space-y-1 text-[#A3A3A3]/80">
+                      <li>Хранение истории диалогов и учетных записей осуществляется в защищенной NoSQL базе данных <strong className="text-white font-medium">Google Firebase/Firestore</strong>.</li>
+                      <li>Контроль доступа к данным строго разграничен правилами безопасности <strong className="text-white font-medium">Firebase Security Rules</strong> на уровне сессии каждого авторизованного пользователя.</li>
+                      <li>Все сетевые соединения зашифрованы по протоколам <strong className="text-white font-medium">HTTPS / TLS 1.3</strong>, исключая возможность перехвата трафика третьими сторонами.</li>
                     </ul>
                   </section>
 
                   <section className="space-y-2">
-                    <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-                      <span className="w-1.5 h-1.5 bg-purple-500 rounded-full" />
-                      3. Передача данных третьим сторонам
+                    <h3 className="text-xs font-semibold text-white flex items-center gap-2 uppercase tracking-wide">
+                      <span className="w-1 h-1 bg-white rounded-full" />
+                      3. Передача третьим сторонам
                     </h3>
                     <p>
-                      YorN AI не продает, не сдает в аренду и не предоставляет данные маркетинговым или рекламным агентствам. Ваши запросы передаются нейросетевой модели компании Google (Gemini API) исключительно для формирования ответов ассистента, в соответствии с правилами безопасного использования коммерческих API-интерфейсов Google.
+                      Платформа не осуществляет продажу, аренду или коммерческое распространение пользовательских данных третьим лицам. Запросы пользователей передаются нейросетевым моделям посредством коммерческого интерфейса API (включая Gemini API) исключительно для генерации ответов ассистента. Обработка данных внешними провайдерами API осуществляется в соответствии с условиями использования корпоративных инструментов для разработчиков, гарантирующих неиспользование ваших запросов для обучения глобальных моделей.
                     </p>
                   </section>
 
                   <section className="space-y-2">
-                    <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-                      <span className="w-1.5 h-1.5 bg-purple-500 rounded-full" />
-                      4. Управление данными и хранение
+                    <h3 className="text-xs font-semibold text-white flex items-center gap-2 uppercase tracking-wide">
+                      <span className="w-1 h-1 bg-white rounded-full" />
+                      4. Политика удаления и архивного хранения
                     </h3>
                     <p>
-                      Вы имеете контроль над отображением своей информации на клиенте:
+                      Вы имеете полное право контролировать свои данные:
                     </p>
                     <p>
-                      Вы можете в любой момент скрыть или удалить конкретную чат-сессию через панель управления в боковом меню. При этом сессия перестает отображаться в вашем профиле. Тем не менее, для соблюдения требований законодательства (включая необходимость предоставления информации по официальным запросам государственных органов в случае выявления запрещенных материалов), все переписки и связанные данные сохраняются на серверах базы данных Google Cloud Firestore в защищенном архивном архиве без возможности публичного или пользовательского просмотра.
+                      При удалении или скрытии чат-сессий на стороне клиентского интерфейса они мгновенно перестают отображаться в вашей истории переписки. Обратите внимание, что для обеспечения соответствия действующим требованиям безопасности, комплаенса и аудита ИБ, все сессии переписки дублируются в защищенный внутренний системный архив в Google Firestore. Доступ к нему строго ограничен сетевыми политиками безопасности и предоставляется исключительно в случаях проведения официального аудита инцидентов ИБ.
                     </p>
                   </section>
 
                   <section className="space-y-2">
-                    <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-                      <span className="w-1.5 h-1.5 bg-purple-500 rounded-full" />
-                      5. Изменения политики конфиденциальности
+                    <h3 className="text-xs font-semibold text-white flex items-center gap-2 uppercase tracking-wide">
+                      <span className="w-1 h-1 bg-white rounded-full" />
+                      5. Обратная связь и контакты
                     </h3>
                     <p>
-                      Администрация YorN AI оставляет за собой право вносить изменения в текущую политику. Мы рекомендуем периодически просматривать данную вкладку для информирования об актуальных методах работы с приватной информацией.
+                      По любым вопросам, касающимся обработки персональных данных, соблюдения политики конфиденциальности или отправки запроса на полное удаление вашего профиля с серверов платформы, вы можете обратиться по электронной почте поддержки.
                     </p>
                   </section>
                 </div>
               ) : (
                 /* Terms of Use Document */
                 <div id="doc-terms" className="space-y-6">
-                  <div className="p-4 bg-indigo-950/10 border border-indigo-900/20 rounded-xl flex gap-3">
-                    <Scale className="w-5 h-5 text-indigo-400 shrink-0 mt-0.5" />
-                    <p className="text-[#818CF8]">
-                      Используя приложение YorN AI, вы соглашаетесь с условиями обслуживания, изложенными ниже. Пожалуйста, внимательно ознакомьтесь с правилами до начала работы.
+                  {/* Philosophy Callout */}
+                  <div className="p-4 bg-[#141414] border border-[#262626] rounded-md flex gap-3">
+                    <FileText className="w-4 h-4 text-white shrink-0 mt-0.5" strokeWidth={1.5} />
+                    <p className="text-[#A3A3A3]">
+                      Используя решение YorN AI, вы безоговорочно соглашаетесь с настоящими условиями обслуживания. Пожалуйста, внимательно ознакомьтесь с правилами до начала использования платформы.
                     </p>
                   </div>
 
                   <section className="space-y-2">
-                    <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-                      <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full" />
-                      1. Общие положения и услуги
+                    <h3 className="text-xs font-semibold text-white flex items-center gap-2 uppercase tracking-wide">
+                      <span className="w-1 h-1 bg-white rounded-full" />
+                      1. Предмет соглашения
                     </h3>
                     <p>
-                      YorN AI — это инструмент, предоставляющий доступ к возможностям искусственного интеллекта для помощи в решении творческих, образовательных, рабочих и повседневных задач. Сервис предоставляется в формате "как есть" (as is) со всем доступным функционалом.
+                      Платформа предоставляет доступ к возможностям современных нейросетевых моделей для автоматизации творческих, когнитивных, образовательных и профессиональных процессов. Услуги и сервисы предоставляются по принципу "как есть" (as is) без каких-либо явных или подразумеваемых гарантий со стороны разработчиков.
                     </p>
                   </section>
 
                   <section className="space-y-2">
-                    <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-                      <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full" />
-                      2. Ограничения при генерации контента
+                    <h3 className="text-xs font-semibold text-white flex items-center gap-2 uppercase tracking-wide">
+                      <span className="w-1 h-1 bg-white rounded-full" />
+                      2. Ответственность и ограничения генеративных ответов
                     </h3>
                     <p>
-                      Ответы формируются генеративной ИИ-моделью. Обратите внимание на следующие ключевые особенности:
+                      Учитывая вероятностную природу работы современных больших языковых моделей (LLM), пользователь соглашается со следующими положениями:
                     </p>
-                    <ul className="list-disc list-inside pl-2 space-y-1 text-[#888]">
-                      <li>ИИ может порождать неточную, устаревшую или вымышленную информацию ("галлюцинации").</li>
-                      <li>Решения ИИ не могут рассматриваться как профессиональные медицинские диагнозы, финансовые рекомендации или юридические консультации.</li>
-                      <li>Пользователь самостоятельно несет ответственность за практическое применение сгенерированных рекомендаций и программного кода.</li>
+                    <ul className="list-disc list-inside pl-1 space-y-1 text-[#A3A3A3]/80">
+                      <li>Сгенерированные ответы могут содержать неточную, неполную или вымышленную информацию ("галлюцинации").</li>
+                      <li>Никакие рекомендации, аналитика или программный код, полученные от ассистента, не могут рассматриваться как профессиональная финансовая, медицинская или юридическая консультация.</li>
+                      <li>Пользователь самостоятельно анализирует, верифицирует и принимает на себя всю полноту ответственности за последствия практического использования результатов работы ИИ.</li>
                     </ul>
                   </section>
 
                   <section className="space-y-2">
-                    <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-                      <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full" />
-                      3. Правила допустимого использования
+                    <h3 className="text-xs font-semibold text-white flex items-center gap-2 uppercase tracking-wide">
+                      <span className="w-1 h-1 bg-white rounded-full" />
+                      3. Правила допустимого использования (Acceptable Use)
                     </h3>
                     <p>
-                      Пользователи обязуются не использовать YorN AI для:
+                      При использовании платформы категорически запрещается:
                     </p>
-                    <ul className="list-disc list-inside pl-2 space-y-1 text-[#888]">
-                      <li>Генерации материалов, нарушающих действующее законодательство Российской Федерации или международное право.</li>
-                      <li>Создания вредоносного ПО, вирусов или проведения кибератак.</li>
-                      <li>Нарушения работы серверов, обхода авторизационных лимитов и злоупотребления API-ключами.</li>
-                      <li>Намеренной дискредитации, оскорбления, разжигания ненависти или ущемления прав других граждан.</li>
+                    <ul className="list-disc list-inside pl-1 space-y-1 text-[#A3A3A3]/80">
+                      <li>Генерация запрещенных законодательством РФ или международным правом материалов.</li>
+                      <li>Разработка вредоносного программного обеспечения, эксплоитов, а также генерация фишингового контента.</li>
+                      <li>Осуществление деструктивных действий в отношении веб-сервисов, попытки обхода системных ограничений безопасности или эксплуатации уязвимостей.</li>
+                      <li>Использование платформы для пропаганды ненависти, насилия, дискриминации, клеветы или преследования отдельных граждан и групп лиц.</li>
                     </ul>
                   </section>
 
                   <section className="space-y-2">
-                    <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-                      <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full" />
-                      4. Ответственность сторон и API
+                    <h3 className="text-xs font-semibold text-white flex items-center gap-2 uppercase tracking-wide">
+                      <span className="w-1 h-1 bg-white rounded-full" />
+                      4. Ограничение ответственности
                     </h3>
                     <p>
-                      Мы не несем ответственности за ущерб, убытки или упущенную выгоду, возникшие в результате временной недоступности сервиса или из-за ошибок в когнитивной цепочке рассуждений ИИ. Использование персональных API-ключей для интеграций находится в полной зоне ответственности и внимания конечного пользователя.
+                      Разработчики не несут ответственности за любые прямые, косвенные, случайные или штрафные убытки, включая потерю данных, упущенную выгоду или ущерб репутации, вызванные использованием либо невозможностью использования платформы, сбоями в каналах связи или перебоями в энергоснабжении серверов.
                     </p>
                   </section>
 
                   <section className="space-y-2">
-                    <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-                      <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full" />
-                      5. Расторжение соглашения
+                    <h3 className="text-xs font-semibold text-white flex items-center gap-2 uppercase tracking-wide">
+                      <span className="w-1 h-1 bg-white rounded-full" />
+                      5. Прекращение доступа
                     </h3>
                     <p>
-                      В случае обнаружения злоупотребления ресурсами, попыток дестабилизации инфраструктуры или систематического нарушения правил генерации контента, доступ пользователя к сервису может быть ограничен в одностороннем порядке.
+                      Платформа сохраняет за собой право в одностороннем порядке в любой момент приостановить или заблокировать учетную запись пользователя при выявлении признаков вредоносной активности, повторных нарушений правил безопасности или совершения действий, угрожающих работоспособности всей инфраструктуры платформы.
                     </p>
                   </section>
                 </div>
@@ -246,16 +253,16 @@ export default function LegalModals({ isOpen, onClose, initialTab = 'privacy' }:
             </div>
 
             {/* Footer */}
-            <div id="legal-modal-footer" className="p-5 bg-[#0A0A0A] border-t border-[#222] flex items-center justify-between">
-              <span id="legal-modal-version-stamp" className="text-[10px] text-[#555] font-mono">
+            <div id="legal-modal-footer" className="p-6 bg-[#141414] border-t border-[#262626] flex items-center justify-between">
+              <span id="legal-modal-version-stamp" className="text-[9px] text-[#A3A3A3] font-mono tracking-wider">
                 APP_ID: 0e089e14-b838-45d1-92b0-8e2e0f7059e0
               </span>
               <button
                 id="legal-modal-confirm-btn"
                 onClick={onClose}
-                className="py-1.5 px-5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-lg text-xs font-semibold shadow-md active:scale-95 transition-all cursor-pointer"
+                className="py-1.5 px-4 bg-white text-black hover:bg-neutral-200 transition-colors text-[11px] font-semibold tracking-tight rounded-md cursor-pointer border border-transparent shadow-sm"
               >
-                Понятно
+                ПОНЯТНО
               </button>
             </div>
           </motion.div>

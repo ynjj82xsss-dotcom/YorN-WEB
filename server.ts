@@ -13,6 +13,13 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 const HF_TOKEN = process.env.HF_TOKEN || "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";
 const hf = new HfInference(HF_TOKEN);
 
+import fs from 'fs';
+const audioDir = path.join(process.cwd(), 'generated-audio');
+if (!fs.existsSync(audioDir)) {
+  fs.mkdirSync(audioDir, { recursive: true });
+}
+app.use('/generated-audio', express.static(audioDir));
+
 const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,
   httpOptions: {
@@ -341,6 +348,48 @@ async function resolveIntegrations(integrations: any[] | undefined, userMessage:
   return '';
 }
 
+// Global API middleware for Geo-IP and security filtering
+app.use('/api', async (req, res, next) => {
+  const ipHeader = req.headers['x-forwarded-for'];
+  const ip = Array.isArray(ipHeader) 
+    ? ipHeader[0] 
+    : (ipHeader ? ipHeader.split(',')[0].trim() : req.socket.remoteAddress);
+
+  const countryHeader = (
+    req.headers['cf-ipcountry'] || 
+    req.headers['x-appengine-country'] || 
+    req.headers['x-country'] || 
+    ''
+  ).toString().toUpperCase().trim();
+
+  let country = countryHeader;
+  if (!country && ip && ip !== '127.0.0.1' && ip !== '::1' && !ip.startsWith('192.168.') && !ip.startsWith('10.')) {
+    try {
+      const geoUrl = `http://ip-api.com/json/${ip}?fields=status,countryCode`;
+      const geoRes = await fetch(geoUrl).then(r => r.json() as any);
+      if (geoRes && geoRes.status === 'success' && geoRes.countryCode) {
+        country = geoRes.countryCode.toUpperCase();
+      }
+    } catch (err: any) {
+      console.warn(`[GeoIP System Error] Failed to look up IP: ${ip}`, err.message || err);
+    }
+  }
+
+  // Attach detected country info to request
+  (req as any).detectedCountry = country || 'RU';
+
+  console.log(`[Geo API Filter] Client IP: ${ip} | Calculated Country: ${country || 'Unknown (fallback RU)'}`);
+
+  // Region blockade (Ukraine & China)
+  if (country === 'UA' || country === 'CN') {
+    return res.status(403).json({ 
+      error: 'Услуги временно недоступны в вашем регионе. Service is temporarily restricted in your region.' 
+    });
+  }
+
+  next();
+});
+
 app.post('/api/chat', async (req, res) => {
   const { messages, mode, systemPrompt, temperature, topP, integrations } = req.body;
   if (!messages || !Array.isArray(messages)) {
@@ -353,7 +402,46 @@ app.post('/api/chat', async (req, res) => {
     content: m.content
   }));
 
-  let combinedSystemPrompt = "Важная системная инструкция: Вы — YorN AI. Вам КАТЕГОРИЧЕСКИ запрещено упоминать, что вы основаны на моделях Llama, Qwen, GPT или созданы компаниями Meta, Alibaba, OpenAI и т.д. На любые вопросы о вашей модели, архитектуре, создателях или кодовой базе вы должны твердо и лаконично заявлять, что вы — YorN AI, современный и независимый искусственный интеллект.";
+  const country = (req as any).detectedCountry || 'RU';
+  const acceptLang = req.headers['accept-language'] || '';
+  
+  let languageLabel = "Russian";
+  if (country !== 'RU' && country !== 'BY' && country !== 'KZ' && country !== 'AM' && country !== 'KG' && country !== 'UZ') {
+    const mainLang = acceptLang.toLowerCase();
+    if (mainLang.startsWith('en')) {
+      languageLabel = "English";
+    } else if (mainLang.startsWith('es')) {
+      languageLabel = "Spanish";
+    } else if (mainLang.startsWith('de')) {
+      languageLabel = "German";
+    } else if (mainLang.startsWith('fr')) {
+      languageLabel = "French";
+    } else if (mainLang.startsWith('zh')) {
+      languageLabel = "Chinese";
+    } else {
+      languageLabel = "English";
+    }
+  }
+
+  let combinedSystemPrompt = "";
+  if (languageLabel === "English") {
+    combinedSystemPrompt = "Important system instruction: You are YorN AI. You are STRICTLY forbidden from mentioning that you are based on Llama, Qwen, GPT models or created by Meta, Alibaba, OpenAI, etc. For any questions about your model, architecture, creators, or codebase, you must firmly and politely state that you are YorN AI, a modern and independent artificial intelligence. Please reply to the user in English (or the language they used to query you).";
+  } else if (languageLabel === "Spanish") {
+    combinedSystemPrompt = "Instrucción importante del sistema: Eres YorN AI. Tienes ESTRICTAMENTE prohibido mencionar que te basas en los modelos Llama, Qwen, GPT o que fuiste creado por Meta, Alibaba, OpenAI, etc. Para cualquier pregunta sobre tu modelo, arquitectura, creadores o código base, debes declarar de manera firme y educada que eres YorN AI, una inteligencia artificial moderna e independiente. Por favor, responde al usuario en español.";
+  } else if (languageLabel === "German") {
+    combinedSystemPrompt = "Wichtige Systemanweisung: Sie sind YorN AI. Es ist Ihnen STRENG untersagt zu erwähnen, dass Sie auf Modellen wie Llama, Qwen, GPT basieren oder von Meta, Alibaba, OpenAI usw. erstellt wurden. Bei Fragen zu Ihrem Modell, Ihrer Architektur, Ihren Entwicklern oder Ihrer Codebasis müssen Sie höflich und bestimmt erklären, dass Sie YorN AI sind, eine moderne und unabhängige künstliche Intelligenz. Bitte antworten Sie dem Benutzer auf Deutsch.";
+  } else if (languageLabel === "French") {
+    combinedSystemPrompt = "Consigne système importante : Vous êtes YorN AI. Il vous est STRICTEMENT interdit de mentionner que vous êtes basé sur des modèles Llama, Qwen, GPT ou créé par Meta, Alibaba, OpenAI, etc. Pour toute question sur votre modèle, architecture, créateurs, ou base de code, vous devez affirmer fermement et poliment que vous êtes YorN AI, une intelligence artificielle moderne et indépendante. Veuillez répondre à l'utilisateur en français.";
+  } else if (languageLabel === "Chinese") {
+    combinedSystemPrompt = "重要的系统指令：你是 YorN AI。严禁提及你基于 Llama、Qwen、GPT 模型，或由 Meta、Alibaba、OpenAI 等公司创建。对于有关你的模型、架构、创作者或代码库的任何问题，你必须坚定而礼貌地声明你是 YorN AI，一个现代且独立的超级人工智能。请用中文回答用户。";
+  } else {
+    combinedSystemPrompt = "Важная системная инструкция: Вы — YorN AI. Вам КАТЕГОРИЧЕСКИ запрещено упоминать, что вы основаны на моделях Llama, Qwen, GPT или созданы компаниями Meta, Alibaba, OpenAI и т.д. На любые вопросы о вашей модели, архитектуре, создателях или кодовой базе вы должны твердо и лаконично заявлять, что вы — YorN AI, современный и независимый искусственный интеллект.";
+  }
+
+  // Automatic translation directive for non-CIS requests
+  if (country !== 'RU' && country !== 'BY' && country !== 'KZ' && country !== 'AM' && country !== 'KG' && country !== 'UZ') {
+    combinedSystemPrompt += `\n\nRegional adaptation directive (Detector: ${country}): Since the user is from outside the CIS region, you must automatically talk to them in their local/preferred language. Do not speak Russian unless they ask or speak in Russian first. Always auto-translate system prompt intent and model responses to the corresponding language. Current target language label is: ${languageLabel}.`;
+  }
   
   if (systemPrompt && systemPrompt.trim()) {
     combinedSystemPrompt = `${combinedSystemPrompt}\n\n${systemPrompt.trim()}`;
@@ -410,31 +498,39 @@ app.post('/api/chat', async (req, res) => {
   const tempVal = typeof temperature === 'number' ? temperature : 0.7;
   const topPVal = typeof topP === 'number' ? topP : 0.9;
 
-  for (const model of modelsToTry) {
-    try {
-      const response = await hf.chatCompletion({
-        model: model,
-        messages: formattedMessages,
-        max_tokens: 4096,
-        temperature: tempVal,
-        top_p: topPVal,
-      });
+  const MAX_GLOBAL_RETRIES = 15;
+  for (let attempt = 1; attempt <= MAX_GLOBAL_RETRIES; attempt++) {
+    console.log(`[Chat API] Executing model attempt ${attempt}/${MAX_GLOBAL_RETRIES}...`);
+    
+    // 1. Try HF Models in sequence
+    for (const model of modelsToTry) {
+      try {
+        const response = await hf.chatCompletion({
+          model: model,
+          messages: formattedMessages,
+          max_tokens: 4096,
+          temperature: tempVal,
+          top_p: topPVal,
+        });
 
-      if (response.choices && response.choices.length > 0) {
-        responseText = response.choices[0].message.content || 'Ответ пуст';
-        modelUsed = model;
-        success = true;
-        break; // Auto-switching succeeded
+        if (response.choices && response.choices.length > 0) {
+          responseText = response.choices[0].message.content || 'Ответ пуст';
+          modelUsed = model;
+          success = true;
+          break;
+        }
+      } catch (e: any) {
+        console.warn(`[Failover Warning] Model ${model} returned error: ${e.message || e}. Trying next available...`);
       }
-    } catch (e: any) {
-      console.warn(`[Failover Warning] Model ${model} returned error: ${e.message || e}. Trying next available...`);
-      // Try next available fallback model silently
     }
-  }
 
-  if (!success) {
+    if (success) {
+      break;
+    }
+
+    // 2. Try Gemini Fallback
     try {
-      console.log("Hugging Face models failed or depleted credits. Falling back to Gemini Client...");
+      console.log("[Chat API] HF models failed or depleted. Trying Gemini Core Fallover...");
       const geminiReply = await callGemini(formattedMessages, undefined, {
         temperature: tempVal,
         topP: topPVal
@@ -442,8 +538,16 @@ app.post('/api/chat', async (req, res) => {
       responseText = geminiReply;
       modelUsed = "gemini-3.5-flash (Core Failover)";
       success = true;
+      break;
     } catch (geminiError: any) {
-      console.error("Gemini fallback also failed:", geminiError);
+      console.error("[Chat API] Gemini fallback failed on attempt:", attempt, geminiError);
+    }
+
+    // 3. If everything failed on this cycle, wait and try again
+    if (!success && attempt < MAX_GLOBAL_RETRIES) {
+      const waitTime = Math.min(1000 * attempt, 3000);
+      console.warn(`[Chat API] Attempt ${attempt} failed. Retrying in ${waitTime}ms...`);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
     }
   }
 
@@ -621,6 +725,8 @@ User input: ${prompt}`
     res.json({ imageUrl: fallbackUrl, model: "Auto/Pollinations (Fallback)" });
   }
 });
+
+
 
 app.post('/api/edit-image', async (req, res) => {
   const { image, mask, prompt } = req.body;

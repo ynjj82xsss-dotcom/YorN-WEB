@@ -31,6 +31,8 @@ interface RightSidebarProps {
   onDeleteAccount?: () => void;
   onOpenLegal?: (tab: 'privacy' | 'terms') => void;
   onOpenAbuseLogs?: () => void;
+  disableAnimations: boolean;
+  setDisableAnimations: (val: boolean) => void;
 }
 
 export default function RightSidebar({ 
@@ -60,7 +62,9 @@ export default function RightSidebar({
   onLogout,
   onDeleteAccount,
   onOpenLegal,
-  onOpenAbuseLogs
+  onOpenAbuseLogs,
+  disableAnimations,
+  setDisableAnimations
 }: RightSidebarProps) {
   const [activeTab, setActiveTab] = useState<'profile' | 'settings'>('profile');
   const [confirmLogout, setConfirmLogout] = useState(false);
@@ -434,6 +438,19 @@ export default function RightSidebar({
                             type="checkbox"
                             checked={showRegenerate}
                             onChange={(e) => setShowRegenerate(e.target.checked)}
+                            className="sr-only peer"
+                          />
+                          <div className="w-8 h-4 bg-[#151515] border border-[#222] rounded-full peer peer-checked:after:translate-x-4 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-[#555] peer-checked:after:bg-[#FFF] after:rounded-full after:h-[10px] after:w-[10px] after:transition-all peer-checked:bg-purple-950/30 peer-checked:border-purple-800/40" />
+                        </div>
+                      </label>
+
+                      <label className="flex items-center justify-between cursor-pointer group select-none">
+                        <span className="text-xs text-[#888] group-hover:text-[#CCC] transition-colors">Отключить интро-анимации</span>
+                        <div className="relative w-8 h-4">
+                          <input 
+                            type="checkbox"
+                            checked={disableAnimations}
+                            onChange={(e) => setDisableAnimations(e.target.checked)}
                             className="sr-only peer"
                           />
                           <div className="w-8 h-4 bg-[#151515] border border-[#222] rounded-full peer peer-checked:after:translate-x-4 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-[#555] peer-checked:after:bg-[#FFF] after:rounded-full after:h-[10px] after:w-[10px] after:transition-all peer-checked:bg-purple-950/30 peer-checked:border-purple-800/40" />
