@@ -1,103 +1,23 @@
-{
-  "entities": {
-    "session": {
-      "title": "Chat Session",
-      "description": "A chat session containing metadata about the user's conversation",
-      "type": "object",
-      "properties": {
-        "title": {
-          "type": "string",
-          "description": "The custom or generated title of the chat session"
-        },
-        "userId": {
-          "type": "string",
-          "description": "The Firebase Authentication UID of the owner"
-        },
-        "date": {
-          "type": "string",
-          "description": "The formatted text date of when the session was created"
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "ISO timestamp representing the creation time"
-        }
-      },
-      "required": ["title", "userId", "date", "createdAt"]
-    },
-    "message": {
-      "title": "Message",
-      "description": "An individual message within a chat session",
-      "type": "object",
-      "properties": {
-        "role": {
-          "type": "string",
-          "enum": ["user", "assistant"],
-          "description": "The role of the sender"
-        },
-        "content": {
-          "type": "string",
-          "description": "The text content of the message containing markdown"
-        },
-        "timestamp": {
-          "type": "string",
-          "description": "ISO timestamp representing when the message was sent"
-        }
-      },
-      "required": ["role", "content", "timestamp"]
-    },
-    "skill": {
-      "title": "Custom Skill",
-      "description": "A custom AI skill or system persona created by the user",
-      "type": "object",
-      "properties": {
-        "userId": {
-          "type": "string",
-          "description": "The UID of the user who owns this custom skill"
-        },
-        "name": {
-          "type": "string",
-          "description": "The friendly display name of the skill"
-        },
-        "trigger": {
-          "type": "string",
-          "description": "The trigger slash command"
-        },
-        "description": {
-          "type": "string",
-          "description": "Short description of what the skill does"
-        },
-        "instructions": {
-          "type": "string",
-          "description": "System guidelines for the model"
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "ISO timestamp of creation"
-        },
-        "isPublic": {
-          "type": "boolean",
-          "description": "Whether this skill is shared in the cloud hub with others"
-        },
-        "authorEmail": {
-          "type": "string",
-          "description": "The email address of the skill's author"
-        }
-      },
-      "required": ["userId", "name", "trigger", "description", "instructions", "createdAt", "isPublic", "authorEmail"]
-    }
-  },
-  "firestore": {
-    "/sessions/{sessionId}": {
-      "schema": "session",
-      "description": "Stores user chat session documents"
-    },
-    "/sessions/{sessionId}/messages/{messageId}": {
-      "schema": "message",
-      "description": "Stores individual messages belonging to a chat session"
-    },
-    "/skills/{skillId}": {
-      "schema": "skill",
-      "description": "Stores custom skill entities created by users"
-    }
-  }
-}
+# GEMINI_API_KEY: Required for Gemini AI API calls.
+# AI Studio automatically injects this at runtime from user secrets.
+# Users configure this via the Secrets panel in the AI Studio UI.
+GEMINI_API_KEY="MY_GEMINI_API_KEY"
+
+# HF_TOKEN: Token for Hugging Face Inference API. 
+# If not provided, a default fallback token is used.
+HF_TOKEN="your_huggingface_token_here"
+
+# APP_URL: The URL where this applet is hosted.
+# AI Studio automatically injects this at runtime with the Cloud Run service URL.
+# Used for self-referential links, OAuth callbacks, and API endpoints.
+APP_URL="MY_APP_URL"
+
+# Supabase Security Auditing configuration (Optional: database mirrors for compliance audit logs)
+VITE_SUPABASE_URL="https://your-project.supabase.co"
+VITE_SUPABASE_ANON_KEY="your-anon-or-service-role-key-here"
+VITE_SUPABASE_TABLE="abuse_logs"
+
+# YooKassa payment integration
+YOOKASSA_SECRET_KEY=
+YOOKASSA_SHOP_ID=
+
