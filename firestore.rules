@@ -1,11 +1,116 @@
-node_modules/
-build/
-dist/
-coverage/
-.DS_Store
-*.log
-.env*
-!.env.example
-generated-audio/
-test-*.ts
-test-*.js
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // 1. Global Safety Net: default-deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // 2. Sessions collection
+    match /sessions/{sessionId} {
+      allow create: if isSignedIn()
+        && isValidId(sessionId)
+        && incoming().userId == request.auth.uid
+        && incoming().title is string && incoming().title.size() <= 200
+        && incoming().date is string && incoming().date.size() <= 50
+        && incoming().createdAt is string && incoming().createdAt.size() <= 50;
+
+      allow read: if isSignedIn() && existing().userId == request.auth.uid;
+
+      allow update: if isSignedIn()
+        && existing().userId == request.auth.uid
+        && incoming().userId == existing().userId
+        && incoming().createdAt == existing().createdAt
+        && (incoming().title is string && incoming().title.size() <= 200)
+        && (incoming().diff(existing()).affectedKeys().hasOnly(['title', 'isPinned', 'isDeleted', 'deletedAt']));
+
+      allow delete: if isSignedIn() && existing().userId == request.auth.uid;
+
+      // 3. Messages subcollection (Master Gate relation check)
+      match /messages/{messageId} {
+        allow create: if isSignedIn()
+          && isValidId(messageId)
+          && isOwner(get(/databases/$(database)/documents/sessions/$(sessionId)).data.userId)
+          && (incoming().role == 'user' || incoming().role == 'assistant')
+          && incoming().content is string && incoming().content.size() <= 65536
+          && incoming().timestamp is string && incoming().timestamp.size() <= 50;
+
+        allow get, delete: if isSignedIn() && (
+          resource.data.get('userId', null) == request.auth.uid ||
+          isOwner(get(/databases/$(database)/documents/sessions/$(sessionId)).data.userId)
+        );
+
+        allow list: if isSignedIn() && isOwner(get(/databases/$(database)/documents/sessions/$(sessionId)).data.userId);
+      }
+    }
+
+    // 4. Skills collection
+    match /skills/{skillId} {
+      function isValidSkill(data) {
+        return data.userId == request.auth.uid
+          && data.name is string && data.name.size() <= 100
+          && data.trigger is string && data.trigger.size() <= 64
+          && data.description is string && data.description.size() <= 500
+          && data.instructions is string && data.instructions.size() <= 10000
+          && data.createdAt is string && data.createdAt.size() <= 50
+          && data.isPublic is bool
+          && data.authorEmail is string && data.authorEmail.size() <= 100;
+      }
+
+      allow create: if isSignedIn()
+        && isValidId(skillId)
+        && isValidSkill(incoming())
+        && incoming().keys().hasAll(['userId', 'name', 'trigger', 'description', 'instructions', 'createdAt', 'isPublic', 'authorEmail'])
+        && incoming().keys().size() == 8;
+
+      allow get: if isSignedIn();
+
+      allow list: if isSignedIn();
+
+      allow update: if isSignedIn()
+        && isValidId(skillId)
+        && existing().userId == request.auth.uid
+        && isValidSkill(incoming())
+        && incoming().userId == existing().userId
+        && incoming().createdAt == existing().createdAt
+        && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'trigger', 'description', 'instructions', 'isPublic', 'authorEmail']);
+
+      allow delete: if isSignedIn() && existing().userId == request.auth.uid;
+    }
+
+    // 5. Notifications collection
+    match /notifications/{notificationId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isSignedIn();
+    }
+
+    // 6. Security Audit compliance logs
+    match /abuse_logs/{logId} {
+      allow create: if isSignedIn();
+      allow read: if isSignedIn() && request.auth.token.email == "b9miks10@gmail.com";
+      allow update, delete: if false; // Direct-deny: safe and non-repudiable audit trails
+    }
+  }
+}

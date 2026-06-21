@@ -1,12 +1,17 @@
 import React, { useState, useRef } from 'react';
 import { motion } from 'motion/react';
-import { SlidersHorizontal, Info, X, User, Cpu, Smartphone, Laptop, CheckCircle2, LogOut, Trash2, ShieldCheck, Scale, ShieldAlert } from 'lucide-react';
+import { SlidersHorizontal, Info, X, User, Cpu, Smartphone, Laptop, CheckCircle2, LogOut, Trash2, ShieldCheck, Scale, ShieldAlert, Heart } from 'lucide-react';
 import { User as FirebaseUser } from 'firebase/auth';
+import SupportModal from './SupportModal';
+import SubscriptionModal from './SubscriptionModal';
+import APIUsageStats from './APIUsageStats';
+import { ChatSession } from '../types';
 
 interface RightSidebarProps {
   isOpen: boolean;
   onClose: () => void;
   user: FirebaseUser | null;
+  sessions: ChatSession[];
   theme: string;
   setTheme: (t: string) => void;
   hubStyle?: 'default' | 'cyberpunk' | 'glass' | 'brutalist';
@@ -33,12 +38,15 @@ interface RightSidebarProps {
   onOpenAbuseLogs?: () => void;
   disableAnimations: boolean;
   setDisableAnimations: (val: boolean) => void;
+  subscriptionTier: 'free' | 'pro' | 'unique';
+  setSubscriptionTier: (val: 'free' | 'pro' | 'unique') => void;
 }
 
 export default function RightSidebar({ 
   isOpen, 
   onClose, 
   user, 
+  sessions,
   theme, 
   setTheme, 
   hubStyle = 'default',
@@ -64,11 +72,15 @@ export default function RightSidebar({
   onOpenLegal,
   onOpenAbuseLogs,
   disableAnimations,
-  setDisableAnimations
+  setDisableAnimations,
+  subscriptionTier,
+  setSubscriptionTier
 }: RightSidebarProps) {
   const [activeTab, setActiveTab] = useState<'profile' | 'settings'>('profile');
   const [confirmLogout, setConfirmLogout] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [isSupportOpen, setIsSupportOpen] = useState(false);
+  const [isSubscriptionOpen, setIsSubscriptionOpen] = useState(false);
 
   const touchStartX = useRef<number | null>(null);
   const touchStartY = useRef<number | null>(null);
@@ -146,8 +158,19 @@ export default function RightSidebar({
                        <User size={24} className="text-[#555]" />
                     )}
                   </div>
-                  <div className="text-center">
-                    <p className="text-sm font-semibold text-[#E0E0E0] mb-1">{user?.displayName || 'Незарегистрированный'}</p>
+                  <div className="text-center flex flex-col items-center">
+                    <div className="flex items-center justify-center gap-1.5 mb-1 flex-wrap">
+                      <p className="text-sm font-semibold text-[#E0E0E0]">{user?.displayName || 'Незарегистрированный'}</p>
+                      <span className={`inline-flex items-center text-[8px] font-mono font-extrabold uppercase tracking-wide px-1.5 py-0.5 rounded leading-none ${
+                        subscriptionTier === 'unique' 
+                          ? 'bg-neutral-105 text-[#000000] bg-white' 
+                          : subscriptionTier === 'pro'
+                            ? 'bg-neutral-800 text-[#FFFFFF] border border-neutral-700'
+                            : 'bg-[#151515] text-[#555] border border-neutral-800'
+                      }`}>
+                        {subscriptionTier}
+                      </span>
+                    </div>
                     <p className="text-xs text-[#555]">{user?.email || '—'}</p>
                   </div>
                   
@@ -362,6 +385,32 @@ export default function RightSidebar({
             ) : (
               <>
                 <div className="space-y-6">
+                  {/* Support Project Block */}
+                  <div>
+                    <label className="text-[10px] uppercase tracking-[0.2em] text-[#444] font-semibold block mb-3">Поддержка проекта</label>
+                    <button 
+                      onClick={() => setIsSupportOpen(true)}
+                      className="w-full flex items-center justify-between p-3.5 bg-[#141414] border border-[#262626] hover:border-[#444] rounded-xl text-left transition-all duration-300 group cursor-pointer"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 rounded bg-[#262626]/40 text-[#FFFFFF] border border-[#262626] group-hover:bg-[#262626] transition-colors">
+                          <Heart size={15} strokeWidth={1.5} />
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold text-[#FFFFFF]">Поддержать проект</p>
+                          <p className="text-[10px] text-neutral-500 leading-none mt-1">Оплата через ЮKassa</p>
+                        </div>
+                      </div>
+                    </button>
+                  </div>
+
+                  {/* API Usage Statistics Block */}
+                  <APIUsageStats 
+                    sessions={sessions} 
+                    subscriptionTier={subscriptionTier}
+                    onOpenSubscription={() => setIsSubscriptionOpen(true)}
+                  />
+
                   {/* Skills Hub Direct Section */}
                   {onOpenSkillsHub && (
                     <div>
@@ -479,6 +528,17 @@ export default function RightSidebar({
           
         </div>
       </div>
+
+      <SupportModal 
+        isOpen={isSupportOpen} 
+        onClose={() => setIsSupportOpen(false)} 
+      />
+
+      <SubscriptionModal 
+        isOpen={isSubscriptionOpen} 
+        onClose={() => setIsSubscriptionOpen(false)} 
+        onTierChange={(tier) => setSubscriptionTier(tier)}
+      />
     </>
   );
 }

@@ -29,6 +29,7 @@ import Background from './components/Background';
 import LeftSidebar from './components/LeftSidebar';
 import RightSidebar from './components/RightSidebar';
 import ChatArea from './components/ChatArea';
+import { VoiceModeOverlay } from './components/VoiceModeOverlay';
 import NotificationsPanel from './components/NotificationsPanel';
 import SkillsHubModal from './components/SkillsHubModal';
 import { ChatSession, Message, AppNotification, Skill, IntegrationConfig } from './types';
@@ -410,6 +411,7 @@ export default function App() {
   
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [isTyping, setIsTyping] = useState(false);
+  const [isVoiceOverlayOpen, setIsVoiceOverlayOpen] = useState(false);
   const [typingLabel, setTypingLabel] = useState<string | undefined>(undefined);
   const [mode, setMode] = useState<'mini' | 'base' | 'max' | 'auto' | 'image'>('auto');
   const [theme, setTheme] = useState(() => localStorage.getItem('yorn_theme') || 'dark');
@@ -438,6 +440,10 @@ export default function App() {
   const [disableAnimations, setDisableAnimations] = useState(() => {
     const saved = localStorage.getItem('yorn_disable_animations');
     return saved === 'true';
+  });
+
+  const [subscriptionTier, setSubscriptionTier] = useState<'free' | 'pro' | 'unique'>(() => {
+    return (localStorage.getItem('yorn_subscription_tier') as any) || 'free';
   });
 
   useEffect(() => {
@@ -1530,6 +1536,7 @@ export default function App() {
               }
             });
           }}
+          subscriptionTier={subscriptionTier}
         />
         
         <div className={`flex-1 flex flex-col h-full min-w-0 transition-all duration-300 ease-in-out ${isLeftOpen ? 'lg:pl-[280px]' : 'lg:pl-0'}`}>
@@ -1556,6 +1563,13 @@ export default function App() {
             onOpenSkillsHub={() => setIsSkillsHubOpen(true)}
             chatStyle={chatStyle}
             onSaveEditedImage={handleSaveEditedImage}
+            onOpenVoiceMode={() => {
+              if (!user) {
+                alert("Пожалуйста, войдите в систему для голосового общения с ИИ.");
+                return;
+              }
+              setIsVoiceOverlayOpen(true);
+            }}
           />
         </div>
 
@@ -1563,6 +1577,9 @@ export default function App() {
           isOpen={isRightOpen} 
           onClose={() => setIsRightOpen(false)}
           user={user}
+          sessions={sessions}
+          subscriptionTier={subscriptionTier}
+          setSubscriptionTier={setSubscriptionTier}
           theme={theme}
           setTheme={setTheme}
           hubStyle={hubStyle}
@@ -1629,6 +1646,17 @@ export default function App() {
         <AbuseLogsModal
           isOpen={isAbuseLogsOpen}
           onClose={() => setIsAbuseLogsOpen(false)}
+        />
+
+        <VoiceModeOverlay 
+          isOpen={isVoiceOverlayOpen}
+          onClose={() => setIsVoiceOverlayOpen(false)}
+          isTyping={isTyping}
+          lastMessage={currentMessages[currentMessages.length - 1]}
+          onSendMessage={handleSendMessage}
+          isCyberpunk={chatStyle === 'cyberpunk'}
+          isGlass={chatStyle === 'glass'}
+          isBrutalist={chatStyle === 'brutalist'}
         />
 
         {/* Real-time Toast Notification Alert */}

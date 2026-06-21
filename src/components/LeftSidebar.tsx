@@ -29,6 +29,7 @@ interface LeftSidebarProps {
   onOpenProfile: () => void;
   user: FirebaseUser | null;
   onLogin: () => void;
+  subscriptionTier: 'free' | 'pro' | 'unique';
 }
 
 export default function LeftSidebar({
@@ -44,6 +45,7 @@ export default function LeftSidebar({
   onOpenProfile,
   user,
   onLogin,
+  subscriptionTier,
 }: LeftSidebarProps) {
   const [menuSessionId, setMenuSessionId] = useState<string | null>(null);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
@@ -346,9 +348,20 @@ export default function LeftSidebar({
                   )}
                 </div>
                 <div className="flex flex-col flex-1 overflow-hidden">
-                  <span className="text-[11px] font-medium text-[#E0E0E0] truncate">
-                    {user.displayName || "Пользователь"}
-                  </span>
+                  <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                    <span className="text-[11px] font-medium text-[#E0E0E0] truncate">
+                      {user.displayName || "Пользователь"}
+                    </span>
+                    <span className={`inline-flex items-center text-[7px] font-mono font-extrabold uppercase tracking-wide px-1.5 py-0.5 rounded leading-none shrink-0 ${
+                      subscriptionTier === 'unique' 
+                        ? 'bg-white text-[#000000]' 
+                        : subscriptionTier === 'pro'
+                          ? 'bg-neutral-800 text-[#FFFFFF] border border-neutral-700'
+                          : 'bg-[#151515] text-[#555] border border-neutral-800'
+                    }`}>
+                      {subscriptionTier}
+                    </span>
+                  </div>
                   <span className="text-[9px] text-[#555] truncate">
                     {user.email}
                   </span>

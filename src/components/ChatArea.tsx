@@ -71,6 +71,7 @@ interface ChatAreaProps {
   onOpenSkillsHub?: () => void;
   chatStyle?: 'default' | 'cyberpunk' | 'glass' | 'brutalist';
   onSaveEditedImage?: (editedImageUrl: string, prompt: string) => void;
+  onOpenVoiceMode?: () => void;
 }
 
 export default function ChatArea({ 
@@ -95,7 +96,8 @@ export default function ChatArea({
   systemSkills = [],
   onOpenSkillsHub,
   chatStyle = 'default',
-  onSaveEditedImage
+  onSaveEditedImage,
+  onOpenVoiceMode
 }: ChatAreaProps) {
   const [inputValue, setInputValue] = useState('');
   const [isRecording, setIsRecording] = useState(false);
@@ -567,7 +569,7 @@ export default function ChatArea({
               </div>
             )}
           </div>
-          <span className="text-xs font-light tracking-wide text-[#666]">Neural Session: <span className="text-[#AAA]">1.6</span></span>
+          <span className="text-xs font-light tracking-wide text-[#666]">Neural Session: <span className="text-[#AAA]">2.0.1</span></span>
           <div className="flex items-center gap-1">
             <button 
               onClick={onOpenNotifications}
@@ -916,8 +918,8 @@ export default function ChatArea({
                  </button>
 
                  <button 
-                   onClick={toggleRecording}
-                   title={isRecording ? "Остановить запись" : "Голосовой ввод"}
+                   onClick={onOpenVoiceMode || toggleRecording}
+                   title={onOpenVoiceMode ? "Разговорный голосовой режим AI" : (isRecording ? "Остановить запись" : "Голосовой ввод")}
                    className={micRecordingClass}
                  >
                    {isRecording ? <MicOff size={16} /> : <Mic size={16} />}
