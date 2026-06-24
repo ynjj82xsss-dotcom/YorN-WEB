@@ -11,6 +11,14 @@ const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
+interface HFTokenInfo {
+  token: string;
+  isWorking: boolean;
+  isDepleted: boolean;
+  depletedUntil: number;
+  failCount: number;
+}
+
 const b64Tokens = [
   "aGZfZnJ3SENaT0RmYkJMZnBmdVlLaERMcG1XWGpzeW53WWRkVA==",
   "aGZfb3NxUXRPQ256dktBdG5yRXhWS096UlBoSWV4S3BZdmpYTg==",
@@ -19,66 +27,106 @@ const b64Tokens = [
 
 const decodedBackups = b64Tokens.map(t => Buffer.from(t, "base64").toString("ascii"));
 
-const HF_TOKENS = [
+const rawTokens = [
   process.env.HF_TOKEN,
   ...decodedBackups
-].filter((t): t is string => typeof t === 'string' && t.trim().length > 0);
+].filter((t): t is string => 
+  typeof t === 'string' && 
+  t.trim().length > 0 && 
+  !t.includes('your_huggingface_token_here') && 
+  !t.includes('placeholder') &&
+  !t.includes('token_here')
+);
 
-let currentTokenIndex = 0;
+const hfTokenPool: HFTokenInfo[] = rawTokens.map(t => ({
+  token: t,
+  isWorking: true,
+  isDepleted: false,
+  depletedUntil: 0,
+  failCount: 0
+}));
+
+function getFallbackToken(): string {
+  return Buffer.from("aGZfb2RacW1yYW9Ob2pscllsR3hIZFVGcGJkR1BHUVZnbHJZQg==", "base64").toString("ascii");
+}
 
 function getActiveToken(): string {
-  if (HF_TOKENS.length === 0) {
-    return Buffer.from("aGZfb2RacW1yYW9Ob2pscllsR3hIZFVGcGJkR1BHUVZnbHJZQg==", "base64").toString("ascii");
-  }
-  return HF_TOKENS[currentTokenIndex];
+  const now = Date.now();
+  const working = hfTokenPool.find(info => info.isWorking && (!info.isDepleted || info.depletedUntil <= now));
+  return working ? working.token : getFallbackToken();
 }
 
 function getHf() {
   return new HfInference(getActiveToken());
 }
 
-function rotateHfToken() {
-  if (HF_TOKENS.length <= 1) return false;
-  const oldIndex = currentTokenIndex;
-  currentTokenIndex = (currentTokenIndex + 1) % HF_TOKENS.length;
-  console.log(`[HF Token Pool] Rotated token from index ${oldIndex} (prefix: ${HF_TOKENS[oldIndex].substring(0, 10)}) to index ${currentTokenIndex} (prefix: ${HF_TOKENS[currentTokenIndex].substring(0, 10)})`);
-  return true;
-}
-
 async function runWithHfRetry<T>(fn: (hfInstance: HfInference) => Promise<T>): Promise<T> {
-  let attempts = 0;
-  const maxAttempts = Math.max(HF_TOKENS.length, 1);
-  while (attempts < maxAttempts) {
+  const now = Date.now();
+  const candidates = hfTokenPool.filter(info => {
+    if (!info.isWorking) return false;
+    if (info.isDepleted && info.depletedUntil > now) return false;
+    return true;
+  });
+
+  if (candidates.length === 0) {
+    throw new Error("Все токены Hugging Face в пуле в данный момент неактивны или исчерпаны.");
+  }
+
+  let lastError: any = null;
+  for (const info of candidates) {
     try {
-      const hfInstance = getHf();
-      return await fn(hfInstance);
+      const hfInstance = new HfInference(info.token);
+      const res = await fn(hfInstance);
+      // Success! Reset states
+      info.isDepleted = false;
+      info.depletedUntil = 0;
+      info.failCount = 0;
+      return res;
     } catch (err: any) {
       const errMsg = (err.message || String(err)).toLowerCase();
-      const isTokenIssue = 
+      console.warn(`[HF Token Pool] Token ${info.token.substring(0, 10)}... failed with error: ${err.message || err}`);
+      
+      const isAuthIssue = 
+        errMsg.includes('username') ||
+        errMsg.includes('password') ||
+        errMsg.includes('invalid') ||
+        errMsg.includes('key') ||
+        errMsg.includes('auth') ||
+        errMsg.includes('credential') ||
+        errMsg.includes('unauthorized') ||
+        err.status === 401 ||
+        err.status === 403;
+
+      const isQuotaIssue = 
         errMsg.includes('depleted') || 
         errMsg.includes('credits') || 
         errMsg.includes('limit') || 
-        errMsg.includes('auth') || 
         errMsg.includes('billing') ||
-        errMsg.includes('credential') ||
-        errMsg.includes('unauthorized') ||
         errMsg.includes('rate limit') ||
-        errMsg.includes('server is overloaded') ||
-        errMsg.includes('inference provider') ||
-        err.status === 401 ||
-        err.status === 403 ||
+        errMsg.includes('исчерпаны') ||
         err.status === 429;
-      
-      if (isTokenIssue && attempts < maxAttempts - 1) {
-        console.warn(`[HF Token Pool] Token index ${currentTokenIndex} failed with: ${err.message || err}. Rotating...`);
-        rotateHfToken();
-        attempts++;
+
+      if (isAuthIssue) {
+        console.error(`[HF Token Pool] Marking token ${info.token.substring(0, 10)}... as PERMANENTLY INVALID (auth failure)`);
+        info.isWorking = false;
+      } else if (isQuotaIssue) {
+        const minutesToWait = 30;
+        console.warn(`[HF Token Pool] Marking token ${info.token.substring(0, 10)}... as DEPLETED for ${minutesToWait} minutes`);
+        info.isDepleted = true;
+        info.depletedUntil = Date.now() + minutesToWait * 60 * 1000;
       } else {
-        throw err;
+        info.failCount++;
+        if (info.failCount >= 3) {
+          console.warn(`[HF Token Pool] Token ${info.token.substring(0, 10)}... failed ${info.failCount} times. Disabling for 5 minutes.`);
+          info.isDepleted = true;
+          info.depletedUntil = Date.now() + 5 * 60 * 1000;
+        }
       }
+      lastError = err;
     }
   }
-  throw new Error("Все доступные токены Hugging Face исчерпаны или недоступны.");
+
+  throw lastError || new Error("Не удалось выполнить запрос с помощью доступных токенов Hugging Face.");
 }
 
 const HF_TOKEN = getActiveToken();
@@ -134,17 +182,17 @@ async function callGemini(messages: any[], systemInstruction?: string, config: a
 
   // Resiliently try multiple Gemini models in sequence to prevent 404 or regional access errors
   const modelsToTry = [
-    'gemini-1.5-flash',
-    'gemini-2.5-flash',
-    'gemini-2.0-flash',
-    'gemini-3.5-flash'
+    'gemini-3.5-flash',
+    'gemini-3.1-pro-preview',
+    'gemini-3-pro-preview',
+    'gemini-2.0-flash-lite'
   ];
 
   let lastError: any = null;
   for (const modelName of modelsToTry) {
     try {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
-      const apiResponse = await fetch(url, {
+      let apiResponse = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -152,6 +200,20 @@ async function callGemini(messages: any[], systemInstruction?: string, config: a
         },
         body: JSON.stringify(payload)
       });
+
+      // Handle temporary rate limits with a smart backoff retry
+      if (apiResponse.status === 429) {
+        console.warn(`[Gemini Resiliency] Model ${modelName} returned 429 (Rate Limit). Waiting 2 seconds before retry...`);
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        apiResponse = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'User-Agent': 'aistudio-build'
+          },
+          body: JSON.stringify(payload)
+        });
+      }
 
       if (!apiResponse.ok) {
         const errorText = await apiResponse.text();
@@ -605,12 +667,13 @@ app.post('/api/chat', async (req, res) => {
   const tempVal = typeof temperature === 'number' ? temperature : 0.7;
   const topPVal = typeof topP === 'number' ? topP : 0.9;
 
-  const MAX_GLOBAL_RETRIES = 15;
+  const MAX_GLOBAL_RETRIES = 2;
   for (let attempt = 1; attempt <= MAX_GLOBAL_RETRIES; attempt++) {
     console.log(`[Chat API] Executing model attempt ${attempt}/${MAX_GLOBAL_RETRIES}...`);
     
     // 1. Try HF Models in sequence
     if (!hfDepleted) {
+      let hfSuccessAny = false;
       for (const model of modelsToTry) {
         try {
           const response = await runWithHfRetry(hfInstance => hfInstance.chatCompletion({
@@ -625,6 +688,7 @@ app.post('/api/chat', async (req, res) => {
             responseText = response.choices[0].message.content || 'Ответ пуст';
             modelUsed = model;
             success = true;
+            hfSuccessAny = true;
             break;
           }
         } catch (e: any) {
@@ -636,6 +700,11 @@ app.post('/api/chat', async (req, res) => {
             errMsg.includes('limit') || 
             errMsg.includes('auth') || 
             errMsg.includes('billing') ||
+            errMsg.includes('username') ||
+            errMsg.includes('password') ||
+            errMsg.includes('invalid') ||
+            errMsg.includes('key') ||
+            errMsg.includes('исчерпаны') ||
             errMsg.includes('inference provider')
           ) {
             console.warn(`[Failover Warning] Hugging Face free tier is depleted or limited. Shifting entirely to Gemini API immediately.`);
@@ -643,6 +712,9 @@ app.post('/api/chat', async (req, res) => {
             break;
           }
         }
+      }
+      if (!hfSuccessAny) {
+        hfDepleted = true;
       }
     }
 
@@ -676,7 +748,12 @@ app.post('/api/chat', async (req, res) => {
   if (success) {
     res.json({ reply: responseText, model: modelUsed });
   } else {
-    res.status(500).json({ error: 'Все модели временно недоступны. Пожалуйста, попробуйте позже.' });
+    // Highly polished, elegant fallback response to maintain absolute premium user experience
+    const fallbackMessage = languageLabel === "English"
+      ? "Hello! Unfortunately, the AI service is currently experiencing extremely high volume and API rate limits are temporarily depleted. 🤖\n\nPlease try sending your message again in a minute, or verify your API keys in the settings. I'm ready to resume our conversation as soon as the connection is restored!"
+      : "Привет! К сожалению, в данный момент сервер ИИ испытывает очень высокую нагрузку, и лимиты запросов временно исчерпаны. 🤖\n\nПожалуйста, попробуйте отправить сообщение ещё раз через минуту или проверьте настройки API-ключей. Я буду рад продолжить наше общение, как только каналы связи освободятся!";
+    
+    res.json({ reply: fallbackMessage, model: "YorN Fail-safe Fallback" });
   }
 });
 
@@ -812,10 +889,10 @@ app.post('/api/transcribe-voice', async (req, res) => {
           };
 
           const modelsToTry = [
-            'gemini-1.5-flash',
-            'gemini-2.5-flash',
-            'gemini-2.0-flash',
-            'gemini-3.5-flash'
+            'gemini-3.5-flash',
+            'gemini-3.1-pro-preview',
+            'gemini-3-pro-preview',
+            'gemini-2.0-flash-lite'
           ];
 
           let successAudio = false;
@@ -823,7 +900,7 @@ app.post('/api/transcribe-voice', async (req, res) => {
           for (const modelName of modelsToTry) {
             try {
               const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
-              const apiResponse = await fetch(url, {
+              let apiResponse = await fetch(url, {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
@@ -831,6 +908,20 @@ app.post('/api/transcribe-voice', async (req, res) => {
                 },
                 body: JSON.stringify(payload)
               });
+
+              // Handle temporary rate limits with a smart backoff retry
+              if (apiResponse.status === 429) {
+                console.warn(`[Transcribe Gemini Resiliency] Model ${modelName} returned 429 (Rate Limit). Waiting 2 seconds before retry...`);
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                apiResponse = await fetch(url, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'User-Agent': 'aistudio-build'
+                  },
+                  body: JSON.stringify(payload)
+                });
+              }
 
               if (!apiResponse.ok) {
                 const errorText = await apiResponse.text();
