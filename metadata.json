@@ -1,6 +1,6 @@
 {
-  "name": "Атмосферный AI Чат",
-  "description": "Премиальный AI чат-бот с глубокой темной темой, матовыми тенями и гипнотическим анимированным фоном.",
+  "name": "YorN AI (Проект закрыт)",
+  "description": "Проект YorN AI закрыт и был продан команде разработчиков LTH(TRUETYPE).",
   "requestFramePermissions": ["microphone"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

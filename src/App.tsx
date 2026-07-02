@@ -34,6 +34,7 @@ import NotificationsPanel from './components/NotificationsPanel';
 import SkillsHubModal from './components/SkillsHubModal';
 import { ChatSession, Message, AppNotification, Skill, IntegrationConfig } from './types';
 import SplashLoader from './components/SplashLoader';
+import { CountdownTimer } from './components/CountdownTimer';
 import LegalModals from './components/LegalModals';
 import AbuseLogsModal from './components/AbuseLogsModal';
 import { motion, AnimatePresence } from 'motion/react';
@@ -1422,6 +1423,80 @@ export default function App() {
       />
     );
   }
+
+  return (
+    <div className="relative h-[100dvh] w-full flex overflow-hidden bg-[#050505]" data-theme={theme}>
+      <Background />
+      <div className="z-10 flex w-full h-full items-center justify-center p-4">
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+          className="bg-[#0b0b0b]/90 backdrop-blur-3xl border border-neutral-800 border-t-neutral-700/60 p-8 md:p-12 rounded-2xl max-w-lg w-full flex flex-col items-center shadow-2xl relative overflow-hidden"
+        >
+          {/* Subtle top silver accent line */}
+          <div className="absolute top-0 left-0 right-0 h-[1px] bg-neutral-800" />
+
+          {/* Logo container with clean minimal outline */}
+          <motion.div 
+            initial={{ scale: 0.92, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ delay: 0.1, duration: 0.4 }}
+            className="w-16 h-16 bg-neutral-900 rounded-full border border-neutral-800 flex items-center justify-center mb-6 shadow-sm relative"
+          >
+            <span className="text-2xl font-semibold text-white font-sans select-none z-10">Y</span>
+          </motion.div>
+          
+          {/* Status Label */}
+          <motion.span
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2, duration: 0.4 }}
+            className="px-3 py-1 rounded-md text-[10px] uppercase tracking-widest font-mono text-neutral-400 bg-neutral-900 border border-neutral-800/80 mb-4 select-none"
+          >
+            АРХИВ • ПЕРЕДАЧА ПРАВ
+          </motion.span>
+          
+          {/* Main Title */}
+          <motion.h1 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3, duration: 0.4 }}
+            className="text-3xl md:text-4xl font-bold text-white mb-6 text-center tracking-tight font-sans"
+          >
+            Проект закрыт!
+          </motion.h1>
+          
+          {/* Description */}
+          <motion.p 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4, duration: 0.4 }}
+            className="text-sm md:text-base text-neutral-400 text-center mb-8 text-balance leading-relaxed font-sans"
+          >
+            Проект <span className="font-semibold text-white font-sans">YorN AI</span> был продан команде разработчиков <span className="font-semibold text-white hover:text-neutral-300 transition-colors duration-300 font-sans border-b border-neutral-700 pb-0.5">LTH(TRUETYPE)</span>.
+          </motion.p>
+          
+          {/* Countdown Timer */}
+          <CountdownTimer targetDateStr="2026-10-10T10:10:00+03:00" />
+          
+          {/* Divider */}
+          <div className="w-full h-[1px] bg-neutral-800/60 my-2" />
+          
+          {/* Footer details */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.5, duration: 0.4 }}
+            className="flex flex-col items-center gap-1 mt-6 text-[10px] text-neutral-600 font-mono tracking-wider uppercase"
+          >
+            <span>ПЕРЕДАЧА ПРАВ ЗАВЕРШЕНА • 2026</span>
+            <span>© YorN AI & LTH(TRUETYPE)</span>
+          </motion.div>
+        </motion.div>
+      </div>
+    </div>
+  );
 
   if (!user) {
     return (
